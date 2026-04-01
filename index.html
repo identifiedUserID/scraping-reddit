@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reddit Discussion Explorer</title>
+    <title>Reddit Discussion Explorer v2</title>
     <style>
         /* ══════════════════════════════════════════════════
            CSS Variables — Theme System
@@ -14,6 +14,7 @@
             --bg-surface: #16213e;
             --bg-elevated: #1c2a4a;
             --bg-hover: #223358;
+            --bg-sidebar: #111125;
             --accent: #e94560;
             --accent-hover: #ff6b81;
             --accent-dim: #a83248;
@@ -26,23 +27,26 @@
             --score-positive: #4caf50;
             --score-negative: #f44336;
             --score-neutral: #a0a0b8;
+            --sentiment-positive: #66bb6a;
+            --sentiment-negative: #ef5350;
+            --sentiment-neutral: #78909c;
             --op-color: #00bcd4;
-            --op-bg: rgba(0, 188, 212, 0.12);
+            --op-bg: rgba(0,188,212,0.12);
             --gilded-color: #ffd700;
             --deleted-color: #ff6b6b;
             --radius: 8px;
             --radius-lg: 12px;
-            --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            --shadow: 0 2px 8px rgba(0,0,0,0.3);
             --transition: 0.2s ease;
+            --sidebar-width: 340px;
         }
-
-        /* ── Light Mode ── */
         [data-theme="light"] {
             --bg-primary: #f5f5f8;
             --bg-secondary: #ffffff;
             --bg-surface: #f0f0f5;
             --bg-elevated: #e8e8f0;
             --bg-hover: #e0e0ea;
+            --bg-sidebar: #eaeaf0;
             --accent: #d63851;
             --accent-hover: #e94560;
             --accent-dim: #b02e45;
@@ -52,664 +56,291 @@
             --text-link: #1976d2;
             --border: #d0d0dd;
             --border-light: #e0e0ea;
-            --op-bg: rgba(0, 188, 212, 0.08);
-            --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --op-bg: rgba(0,188,212,0.08);
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
         /* ══════════════════════════════════════════════════
-           Base Styles
+           Base
            ══════════════════════════════════════════════════ */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                         Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            min-height: 100vh;
-        }
+        *{box-sizing:border-box;margin:0;padding:0}
+        html{scroll-behavior:smooth}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.6;min-height:100vh;display:flex}
 
         /* ══════════════════════════════════════════════════
-           Layout
+           Layout — Main + Sidebar
            ══════════════════════════════════════════════════ */
-        .app-container {
-            max-width: 960px;
-            margin: 0 auto;
-            padding: 20px 16px;
-        }
+        .app-layout{display:flex;width:100%;min-height:100vh}
+        .main-content{flex:1;min-width:0;padding:20px 24px;overflow-y:auto}
 
-        /* ── Header ── */
-        .app-header {
-            text-align: center;
-            padding: 28px 0 24px;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 24px;
-        }
+        /* ── Sidebar ── */
+        .sidebar{width:var(--sidebar-width);background:var(--bg-sidebar);border-left:1px solid var(--border);padding:16px;overflow-y:auto;position:sticky;top:0;height:100vh;display:none;flex-shrink:0}
+        .sidebar.visible{display:block}
+        .sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer}
+        .sidebar-close:hover{color:var(--accent)}
+        .sidebar h3{font-size:1rem;color:var(--accent);margin-bottom:12px;padding-right:30px}
+        .sidebar-section{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+        .sidebar-section:last-child{border-bottom:none}
+        .sidebar-label{font-size:.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+        .sidebar-value{font-size:.9rem;color:var(--text-primary);margin-bottom:8px}
+        .sidebar-bar{height:6px;background:var(--bg-surface);border-radius:3px;margin-bottom:6px;overflow:hidden}
+        .sidebar-bar-fill{height:100%;border-radius:3px;transition:width .3s ease}
+        .word-chip{display:inline-block;background:var(--bg-surface);border:1px solid var(--border);border-radius:4px;padding:2px 8px;margin:2px;font-size:.78rem;color:var(--text-secondary)}
+        .word-chip .freq{color:var(--accent);margin-left:4px;font-weight:600}
 
-        .app-header h1 {
-            font-size: 1.7rem;
-            font-weight: 700;
-            color: var(--accent);
-            margin-bottom: 4px;
-            letter-spacing: -0.02em;
-        }
+        /* ══════════════════════════════════════════════════
+           Header
+           ══════════════════════════════════════════════════ */
+        .app-header{text-align:center;padding:24px 0 20px;border-bottom:1px solid var(--border);margin-bottom:20px}
+        .app-header h1{font-size:1.6rem;font-weight:700;color:var(--accent);letter-spacing:-.02em}
+        .app-header p{color:var(--text-muted);font-size:.85rem}
+        .header-controls{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+        .theme-toggle,.sidebar-toggle-btn{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);padding:5px 12px;color:var(--text-secondary);cursor:pointer;font-size:.8rem;transition:var(--transition)}
+        .theme-toggle:hover,.sidebar-toggle-btn:hover{background:var(--bg-hover);border-color:var(--border-light)}
 
-        .app-header p {
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
+        /* ══════════════════════════════════════════════════
+           Input Section
+           ══════════════════════════════════════════════════ */
+        .input-section{display:flex;gap:10px;margin-bottom:14px}
+        .url-input{flex:1;padding:11px 15px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text-primary);font-size:.93rem;transition:var(--transition);outline:none}
+        .url-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(233,69,96,.2)}
+        .url-input::placeholder{color:var(--text-muted)}
+        .btn{padding:11px 24px;border:none;border-radius:var(--radius);font-size:.93rem;font-weight:600;cursor:pointer;transition:var(--transition);white-space:nowrap}
+        .btn-primary{background:var(--accent);color:#fff}
+        .btn-primary:hover:not(:disabled){background:var(--accent-hover)}
+        .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+        .btn-secondary{background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border);padding:5px 12px;font-size:.8rem}
+        .btn-secondary:hover{background:var(--bg-hover);color:var(--text-primary)}
+        .btn-secondary.active{background:var(--accent-dim);color:#fff;border-color:var(--accent)}
 
-        .theme-toggle {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: var(--bg-surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 6px 14px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: var(--transition);
-        }
+        /* ══════════════════════════════════════════════════
+           Controls Bar
+           ══════════════════════════════════════════════════ */
+        .controls-bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 14px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:16px}
+        .control-group{display:flex;align-items:center;gap:5px}
+        .control-group label{color:var(--text-muted);font-size:.8rem;font-weight:500}
+        .control-input{background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:.83rem;outline:none}
+        .control-input:focus{border-color:var(--accent)}
+        select.control-input{padding:4px 6px;cursor:pointer}
+        input[type="range"]{width:90px;accent-color:var(--accent)}
+        .controls-actions{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap}
 
-        .theme-toggle:hover {
-            background: var(--bg-hover);
-            border-color: var(--border-light);
-        }
+        /* ══════════════════════════════════════════════════
+           Tabs
+           ══════════════════════════════════════════════════ */
+        .tab-bar{display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border);display:none}
+        .tab-bar.visible{display:flex}
+        .tab-btn{padding:8px 18px;background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--text-muted);font-size:.85rem;font-weight:600;cursor:pointer;transition:var(--transition)}
+        .tab-btn:hover{color:var(--text-primary)}
+        .tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+        .tab-panel{display:none}
+        .tab-panel.active{display:block}
 
-        /* ── Input Section ── */
-        .input-section {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 16px;
-        }
+        /* ══════════════════════════════════════════════════
+           Status Messages
+           ══════════════════════════════════════════════════ */
+        .status-message{padding:12px 16px;border-radius:var(--radius);margin-bottom:14px;font-size:.88rem;display:none}
+        .status-message.visible{display:block}
+        .status-loading{background:var(--bg-surface);color:var(--text-secondary);border:1px solid var(--border)}
+        .status-error{background:rgba(244,67,54,.1);color:#ff6b6b;border:1px solid rgba(244,67,54,.25)}
+        .status-success{background:rgba(76,175,80,.1);color:#81c784;border:1px solid rgba(76,175,80,.25)}
 
-        .url-input {
-            flex: 1;
-            padding: 12px 16px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            font-size: 0.95rem;
-            transition: var(--transition);
-            outline: none;
-        }
+        /* ══════════════════════════════════════════════════
+           Post Header
+           ══════════════════════════════════════════════════ */
+        .post-header{background:var(--bg-secondary);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--radius-lg);padding:20px;margin-bottom:18px;display:none}
+        .post-header.visible{display:block}
+        .post-title{font-size:1.2rem;font-weight:700;margin-bottom:8px;line-height:1.3}
+        .post-meta{color:var(--text-muted);font-size:.83rem;margin-bottom:8px}
+        .post-meta .subreddit{color:var(--text-link)}
+        .post-meta .author{color:var(--accent);cursor:pointer;text-decoration:underline dotted}
+        .post-meta .author:hover{text-decoration:underline}
+        .post-flags{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
+        .flag-badge{font-size:.68rem;font-weight:700;padding:2px 7px;border-radius:3px;text-transform:uppercase;letter-spacing:.04em}
+        .flag-nsfw{background:rgba(244,67,54,.2);color:#ff6b6b}
+        .flag-locked{background:rgba(255,193,7,.2);color:#ffd54f}
+        .flag-archived{background:rgba(160,160,184,.15);color:var(--text-muted)}
+        .flag-flair{background:rgba(100,181,246,.15);color:var(--text-link)}
+        .post-sentiment-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:.72rem;font-weight:600;margin-left:8px}
+        .sentiment-positive-badge{background:rgba(102,187,106,.15);color:var(--sentiment-positive)}
+        .sentiment-negative-badge{background:rgba(239,83,80,.15);color:var(--sentiment-negative)}
+        .sentiment-neutral-badge{background:rgba(120,144,156,.15);color:var(--sentiment-neutral)}
+        .post-body{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);white-space:pre-wrap;line-height:1.7;color:var(--text-secondary)}
 
-        .url-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.2);
-        }
+        /* ══════════════════════════════════════════════════
+           Analytics
+           ══════════════════════════════════════════════════ */
+        .analytics-panel{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;margin-bottom:18px;display:none}
+        .analytics-panel.visible{display:block}
+        .analytics-title{font-size:.85rem;font-weight:600;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+        .analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:10px}
+        .stat-card{text-align:center;padding:8px 6px;background:var(--bg-surface);border-radius:var(--radius);border:1px solid var(--border)}
+        .stat-value{font-size:1.3rem;font-weight:700;color:var(--accent)}
+        .stat-label{font-size:.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+        .sentiment-summary{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+        .sentiment-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin:8px 0}
+        .sentiment-bar .positive{background:var(--sentiment-positive)}
+        .sentiment-bar .neutral{background:var(--sentiment-neutral)}
+        .sentiment-bar .negative{background:var(--sentiment-negative)}
+        .sentiment-legend{display:flex;gap:14px;font-size:.78rem;color:var(--text-muted);flex-wrap:wrap}
+        .sentiment-legend span{display:flex;align-items:center;gap:4px}
+        .sentiment-dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+        .engagement-info{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:.83rem;color:var(--text-secondary)}
 
-        .url-input::placeholder {
-            color: var(--text-muted);
-        }
-
-        .btn {
-            padding: 12px 28px;
-            border: none;
-            border-radius: var(--radius);
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: var(--transition);
-            white-space: nowrap;
-        }
-
-        .btn-primary {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background: var(--accent-hover);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-secondary {
-            background: var(--bg-surface);
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
-            padding: 6px 14px;
-            font-size: 0.82rem;
-        }
-
-        .btn-secondary:hover {
-            background: var(--bg-hover);
-            color: var(--text-primary);
-        }
-
-        /* ── Controls ── */
-        .controls-bar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 14px;
-            align-items: center;
-            padding: 12px 16px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            margin-bottom: 20px;
-        }
-
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .control-group label {
-            color: var(--text-muted);
-            font-size: 0.82rem;
-            font-weight: 500;
-        }
-
-        .control-input {
-            background: var(--bg-surface);
-            color: var(--text-primary);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 4px 8px;
-            font-size: 0.85rem;
-            outline: none;
-        }
-
-        .control-input:focus {
-            border-color: var(--accent);
-        }
-
-        select.control-input {
-            padding: 4px 6px;
-            cursor: pointer;
-        }
-
-        input[type="range"] {
-            width: 100px;
-            accent-color: var(--accent);
-        }
-
-        .controls-actions {
-            display: flex;
-            gap: 6px;
-            margin-left: auto;
-        }
-
-        /* ── Status Messages ── */
-        .status-message {
-            padding: 14px 18px;
-            border-radius: var(--radius);
-            margin-bottom: 16px;
-            font-size: 0.9rem;
-            display: none;
-        }
-
-        .status-message.visible {
-            display: block;
-        }
-
-        .status-loading {
-            background: var(--bg-surface);
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
-        }
-
-        .status-error {
-            background: rgba(244, 67, 54, 0.1);
-            color: #ff6b6b;
-            border: 1px solid rgba(244, 67, 54, 0.25);
-        }
-
-        .status-success {
-            background: rgba(76, 175, 80, 0.1);
-            color: #81c784;
-            border: 1px solid rgba(76, 175, 80, 0.25);
-        }
-
-        /* ── Post Header ── */
-        .post-header {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-left: 4px solid var(--accent);
-            border-radius: var(--radius-lg);
-            padding: 22px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .post-header.visible {
-            display: block;
-        }
-
-        .post-title {
-            font-size: 1.25rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-            line-height: 1.3;
-        }
-
-        .post-meta {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            margin-bottom: 10px;
-        }
-
-        .post-meta .subreddit { color: var(--text-link); }
-        .post-meta .author { color: var(--accent); }
-
-        .post-flags {
-            display: flex;
-            gap: 6px;
-            margin-top: 6px;
-            flex-wrap: wrap;
-        }
-
-        .flag-badge {
-            font-size: 0.7rem;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 3px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .flag-nsfw { background: rgba(244,67,54,0.2); color: #ff6b6b; }
-        .flag-locked { background: rgba(255,193,7,0.2); color: #ffd54f; }
-        .flag-archived { background: rgba(160,160,184,0.15); color: var(--text-muted); }
-        .flag-flair { background: rgba(100,181,246,0.15); color: var(--text-link); }
-
-        .post-body {
-            margin-top: 14px;
-            padding-top: 14px;
-            border-top: 1px solid var(--border);
-            white-space: pre-wrap;
-            line-height: 1.7;
-            color: var(--text-secondary);
-        }
-
-        /* ── Analytics ── */
-        .analytics-panel {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 18px 22px;
-            margin-bottom: 20px;
-            display: none;
-        }
-
-        .analytics-panel.visible {
-            display: block;
-        }
-
-        .analytics-title {
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--text-muted);
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-        }
-
-        .analytics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 12px;
-        }
-
-        .stat-card {
-            text-align: center;
-            padding: 10px 8px;
-            background: var(--bg-surface);
-            border-radius: var(--radius);
-            border: 1px solid var(--border);
-        }
-
-        .stat-value {
-            font-size: 1.4rem;
-            font-weight: 700;
-            color: var(--accent);
-        }
-
-        .stat-label {
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            margin-top: 2px;
-        }
+        /* ══════════════════════════════════════════════════
+           Search & Quick Jump
+           ══════════════════════════════════════════════════ */
+        .search-bar{position:relative;margin-bottom:14px;display:none}
+        .search-bar.visible{display:block}
+        .search-input{width:100%;padding:9px 14px 9px 34px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text-primary);font-size:.88rem;outline:none}
+        .search-input:focus{border-color:var(--accent)}
+        .search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.88rem}
+        .search-count{position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:.76rem}
+        .comment-card.search-match{border-color:var(--accent);box-shadow:0 0 0 1px rgba(233,69,96,.3)}
 
         /* ── Breadcrumbs ── */
-        .breadcrumb-bar {
-            padding: 8px 14px;
-            background: var(--bg-surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.82rem;
-            color: var(--text-muted);
-            margin-bottom: 14px;
-            display: none;
-            overflow-x: auto;
-            white-space: nowrap;
-        }
+        .breadcrumb-bar{padding:7px 12px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);font-size:.8rem;color:var(--text-muted);margin-bottom:12px;display:none;overflow-x:auto;white-space:nowrap}
+        .breadcrumb-bar.visible{display:block}
+        .breadcrumb-link{color:var(--text-link);cursor:pointer;text-decoration:none}
+        .breadcrumb-link:hover{text-decoration:underline}
+        .breadcrumb-sep{margin:0 4px;color:var(--text-muted)}
 
-        .breadcrumb-bar.visible {
-            display: block;
-        }
+        /* ══════════════════════════════════════════════════
+           Comment Tree
+           ══════════════════════════════════════════════════ */
+        .comment-tree{margin-bottom:30px}
+        .comment-node{margin-bottom:2px}
+        .comment-card{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:3px;transition:var(--transition);cursor:default;position:relative}
+        .comment-card:hover{border-color:var(--border-light);background:var(--bg-elevated)}
+        .comment-card.is-op{background:var(--op-bg);border-color:rgba(0,188,212,.25)}
+        .comment-card.highlight{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-dim)}
+        .comment-header{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px;font-size:.8rem}
+        .comment-hierarchy{color:var(--text-muted);font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:.76rem}
+        .comment-author{font-weight:600;color:var(--accent);cursor:pointer;text-decoration:underline dotted}
+        .comment-author:hover{text-decoration:underline}
+        .comment-author.is-deleted{color:var(--deleted-color);font-style:italic;cursor:default;text-decoration:none}
+        .op-badge{background:var(--op-color);color:#000;padding:0 5px;border-radius:3px;font-size:.66rem;font-weight:700;letter-spacing:.04em}
+        .gilded-badge{color:var(--gilded-color);font-size:.76rem}
+        .comment-score{font-size:.8rem}
+        .comment-score.positive{color:var(--score-positive)}
+        .comment-score.negative{color:var(--score-negative)}
+        .comment-score.neutral{color:var(--score-neutral)}
+        .comment-time{color:var(--text-muted);font-size:.76rem}
+        .comment-id{color:var(--text-muted);font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:.7rem;opacity:.6}
+        .comment-permalink{color:var(--text-muted);font-size:.7rem;text-decoration:none}
+        .comment-permalink:hover{color:var(--text-link);text-decoration:underline}
+        .sentiment-indicator{font-size:.72rem;padding:1px 6px;border-radius:3px;font-weight:600}
+        .sentiment-indicator.positive{background:rgba(102,187,106,.12);color:var(--sentiment-positive)}
+        .sentiment-indicator.negative{background:rgba(239,83,80,.12);color:var(--sentiment-negative)}
+        .sentiment-indicator.neutral{background:rgba(120,144,156,.1);color:var(--sentiment-neutral)}
+        .sentiment-tooltip{display:none;position:absolute;top:100%;right:0;z-index:100;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;min-width:220px;box-shadow:var(--shadow);font-size:.78rem}
+        .sentiment-tooltip.visible{display:block}
+        .sentiment-tooltip .row{display:flex;justify-content:space-between;margin-bottom:3px;color:var(--text-secondary)}
+        .sentiment-tooltip .row .val{color:var(--text-primary);font-weight:500}
+        .sentiment-words{margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+        .sentiment-words .pos-word{color:var(--sentiment-positive);font-size:.72rem}
+        .sentiment-words .neg-word{color:var(--sentiment-negative);font-size:.72rem}
+        .comment-body{white-space:pre-wrap;word-break:break-word;line-height:1.6;color:var(--text-secondary);font-size:.9rem}
+        .replies-container{margin-left:20px;padding-left:12px;border-left:2px solid var(--border);transition:var(--transition)}
+        .replies-container:hover{border-left-color:var(--border-light)}
+        .replies-container.collapsed{display:none}
+        .toggle-btn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:.76rem;padding:2px 0;margin-top:5px;transition:var(--transition)}
+        .toggle-btn:hover{color:var(--accent)}
+        .truncated-notice{color:var(--text-muted);font-size:.8rem;font-style:italic;padding:7px 12px;background:var(--bg-surface);border-radius:var(--radius);border:1px dashed var(--border)}
 
-        .breadcrumb-link {
-            color: var(--text-link);
-            cursor: pointer;
-            text-decoration: none;
-        }
+        /* ══════════════════════════════════════════════════
+           Table View
+           ══════════════════════════════════════════════════ */
+        .table-container{overflow-x:auto;margin-bottom:30px}
+        .comment-table{width:100%;border-collapse:collapse;font-size:.82rem}
+        .comment-table th{background:var(--bg-surface);color:var(--text-muted);padding:8px 10px;text-align:left;font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid var(--border);position:sticky;top:0;cursor:pointer;user-select:none}
+        .comment-table th:hover{color:var(--text-primary)}
+        .comment-table th .sort-arrow{margin-left:4px;font-size:.7rem}
+        .comment-table td{padding:7px 10px;border-bottom:1px solid var(--border);color:var(--text-secondary);max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .comment-table tr:hover td{background:var(--bg-hover)}
+        .comment-table .author-cell{color:var(--accent);cursor:pointer}
+        .comment-table .author-cell:hover{text-decoration:underline}
+        .comment-table .score-cell.positive{color:var(--score-positive)}
+        .comment-table .score-cell.negative{color:var(--score-negative)}
+        .comment-table .sentiment-cell.positive{color:var(--sentiment-positive)}
+        .comment-table .sentiment-cell.negative{color:var(--sentiment-negative)}
+        .comment-table .sentiment-cell.neutral{color:var(--sentiment-neutral)}
+        .comment-table .body-cell{cursor:pointer}
+        .comment-table .body-cell:hover{color:var(--text-primary)}
 
-        .breadcrumb-link:hover {
-            text-decoration: underline;
-        }
+        /* ══════════════════════════════════════════════════
+           Quick-Jump Bar
+           ══════════════════════════════════════════════════ */
+        .quickjump-bar{display:none;gap:4px;flex-wrap:wrap;margin-bottom:14px;padding:8px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius)}
+        .quickjump-bar.visible{display:flex}
+        .quickjump-bar .qj-label{color:var(--text-muted);font-size:.78rem;font-weight:600;margin-right:6px;display:flex;align-items:center}
+        .quickjump-btn{background:var(--bg-surface);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:.76rem;color:var(--text-secondary);cursor:pointer;transition:var(--transition)}
+        .quickjump-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
 
-        .breadcrumb-sep {
-            margin: 0 4px;
-            color: var(--text-muted);
-        }
+        /* ══════════════════════════════════════════════════
+           Footer
+           ══════════════════════════════════════════════════ */
+        .app-footer{text-align:center;padding:18px 0;border-top:1px solid var(--border);color:var(--text-muted);font-size:.76rem;display:none}
+        .app-footer.visible{display:block}
 
-        /* ── Comment Tree ── */
-        .comment-tree {
-            margin-bottom: 40px;
-        }
-
-        .comment-node {
-            margin-bottom: 2px;
-        }
-
-        .comment-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 12px 16px;
-            margin-bottom: 4px;
-            transition: var(--transition);
-            cursor: default;
-        }
-
-        .comment-card:hover {
-            border-color: var(--border-light);
-            background: var(--bg-elevated);
-        }
-
-        .comment-card.is-op {
-            background: var(--op-bg);
-            border-color: rgba(0, 188, 212, 0.25);
-        }
-
-        .comment-card.highlight {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 1px var(--accent-dim);
-        }
-
-        .comment-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-bottom: 6px;
-            font-size: 0.82rem;
-        }
-
-        .comment-hierarchy {
-            color: var(--text-muted);
-            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-            font-size: 0.78rem;
-        }
-
-        .comment-author {
-            font-weight: 600;
-            color: var(--accent);
-        }
-
-        .comment-author.is-deleted {
-            color: var(--deleted-color);
-            font-style: italic;
-        }
-
-        .op-badge {
-            background: var(--op-color);
-            color: #000;
-            padding: 0 6px;
-            border-radius: 3px;
-            font-size: 0.68rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-        }
-
-        .gilded-badge {
-            color: var(--gilded-color);
-            font-size: 0.78rem;
-        }
-
-        .comment-score {
-            font-size: 0.82rem;
-        }
-
-        .comment-score.positive { color: var(--score-positive); }
-        .comment-score.negative { color: var(--score-negative); }
-        .comment-score.neutral { color: var(--score-neutral); }
-
-        .comment-time {
-            color: var(--text-muted);
-            font-size: 0.78rem;
-        }
-
-        .comment-id {
-            color: var(--text-muted);
-            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-            font-size: 0.72rem;
-            opacity: 0.6;
-        }
-
-        .comment-permalink {
-            color: var(--text-muted);
-            font-size: 0.72rem;
-            text-decoration: none;
-        }
-
-        .comment-permalink:hover {
-            color: var(--text-link);
-            text-decoration: underline;
-        }
-
-        .comment-body {
-            white-space: pre-wrap;
-            word-break: break-word;
-            line-height: 1.6;
-            color: var(--text-secondary);
-            font-size: 0.92rem;
-        }
-
-        /* ── Reply Container ── */
-        .replies-container {
-            margin-left: 22px;
-            padding-left: 14px;
-            border-left: 2px solid var(--border);
-            transition: var(--transition);
-        }
-
-        .replies-container:hover {
-            border-left-color: var(--border-light);
-        }
-
-        .replies-container.collapsed {
-            display: none;
-        }
-
-        /* ── Toggle Button ── */
-        .toggle-btn {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            font-size: 0.78rem;
-            padding: 2px 0;
-            margin-top: 6px;
-            transition: var(--transition);
-        }
-
-        .toggle-btn:hover {
-            color: var(--accent);
-        }
-
-        /* ── Truncation Notice ── */
-        .truncated-notice {
-            color: var(--text-muted);
-            font-size: 0.82rem;
-            font-style: italic;
-            padding: 8px 14px;
-            background: var(--bg-surface);
-            border-radius: var(--radius);
-            border: 1px dashed var(--border);
-        }
-
-        /* ── Search Bar ── */
-        .search-bar {
-            position: relative;
-            margin-bottom: 16px;
-            display: none;
-        }
-
-        .search-bar.visible {
-            display: block;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 10px 14px 10px 36px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            font-size: 0.9rem;
-            outline: none;
-        }
-
-        .search-input:focus {
-            border-color: var(--accent);
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        .search-count {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-            font-size: 0.78rem;
-        }
-
-        .comment-card.search-match {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 1px rgba(233, 69, 96, 0.3);
-        }
-
-        /* ── Footer ── */
-        .app-footer {
-            text-align: center;
-            padding: 20px 0;
-            border-top: 1px solid var(--border);
-            color: var(--text-muted);
-            font-size: 0.78rem;
-        }
+        /* ══════════════════════════════════════════════════
+           Spinner
+           ══════════════════════════════════════════════════ */
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
 
         /* ══════════════════════════════════════════════════
            Responsive
            ══════════════════════════════════════════════════ */
-        @media (max-width: 600px) {
-            .app-header h1 { font-size: 1.3rem; }
-            .input-section { flex-direction: column; }
-            .controls-bar { flex-direction: column; align-items: stretch; }
-            .controls-actions { margin-left: 0; justify-content: center; }
-            .replies-container { margin-left: 10px; padding-left: 10px; }
-            .theme-toggle { position: static; margin: 10px auto; display: block; }
-            .analytics-grid { grid-template-columns: repeat(2, 1fr); }
+        @media(max-width:900px){
+            .sidebar{position:fixed;top:0;right:0;z-index:200;height:100vh;box-shadow:-4px 0 20px rgba(0,0,0,.4)}
+            .app-layout{flex-direction:column}
         }
-
-        /* ── Spinner ── */
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid var(--border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            vertical-align: middle;
-            margin-right: 8px;
+        @media(max-width:600px){
+            .app-header h1{font-size:1.25rem}
+            .input-section{flex-direction:column}
+            .controls-bar{flex-direction:column;align-items:stretch}
+            .controls-actions{margin-left:0;justify-content:center}
+            .replies-container{margin-left:8px;padding-left:8px}
+            .analytics-grid{grid-template-columns:repeat(2,1fr)}
+            .sidebar{width:100%}
         }
     </style>
 </head>
 <body>
-    <div class="app-container">
+<div class="app-layout">
+    <!-- ══════════════ MAIN CONTENT ══════════════ -->
+    <div class="main-content">
 
-        <!-- ── Theme Toggle ── -->
-        <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
-            🌙 Dark
-        </button>
-
-        <!-- ── Header ── -->
+        <!-- Header -->
         <header class="app-header">
-            <h1>🔍 Reddit Discussion Explorer</h1>
-            <p>Analyze Reddit threads with hierarchical comment trees</p>
+            <h1>🔍 Reddit Discussion Explorer <span style="font-size:.65em;color:var(--text-muted)">v2</span></h1>
+            <p>Analyze Reddit threads · Sentiment · User Analytics · Export</p>
+            <div class="header-controls">
+                <button class="theme-toggle" onclick="toggleTheme()" id="themeToggle">☀️ Light</button>
+                <button class="sidebar-toggle-btn" onclick="toggleSidebar()" id="sidebarToggleBtn">👤 User Panel</button>
+            </div>
         </header>
 
-        <!-- ── Input ── -->
+        <!-- Input -->
         <div class="input-section">
-            <input
-                type="text"
-                class="url-input"
-                id="urlInput"
-                placeholder="Paste a Reddit post URL..."
-                autofocus
-            >
-            <button class="btn btn-primary" id="fetchBtn" onclick="fetchThread()">
-                Fetch
-            </button>
+            <input type="text" class="url-input" id="urlInput" placeholder="Paste a Reddit post URL..." autofocus>
+            <button class="btn btn-primary" id="fetchBtn" onclick="fetchThread()">Fetch</button>
         </div>
 
-        <!-- ── Controls ── -->
+        <!-- Controls -->
         <div class="controls-bar">
             <div class="control-group">
-                <label for="depthSlider">Depth:</label>
+                <label>Depth:</label>
                 <input type="range" id="depthSlider" min="1" max="30" value="10">
-                <span id="depthValue" style="color:var(--text-primary);font-size:0.85rem;min-width:20px;">10</span>
+                <span id="depthValue" style="color:var(--text-primary);font-size:.83rem;min-width:18px">10</span>
             </div>
             <div class="control-group">
-                <label for="minScoreInput">Min Score:</label>
-                <input type="number" class="control-input" id="minScoreInput" placeholder="any" style="width:65px;">
+                <label>Min Score:</label>
+                <input type="number" class="control-input" id="minScoreInput" placeholder="any" style="width:58px">
             </div>
             <div class="control-group">
-                <label for="sortSelect">Sort:</label>
+                <label>Sort:</label>
                 <select class="control-input" id="sortSelect">
                     <option value="best">Best</option>
                     <option value="top">Top</option>
@@ -719,596 +350,581 @@
                 </select>
             </div>
             <div class="control-group">
-                <label>
-                    <input type="checkbox" id="skipDeletedCheck"> Skip deleted
-                </label>
+                <label><input type="checkbox" id="skipDeletedCheck"> Skip deleted</label>
             </div>
             <div class="controls-actions">
-                <button class="btn btn-secondary" onclick="toggleSearch()">🔎 Search</button>
-                <button class="btn btn-secondary" onclick="expandAll()">+ Expand All</button>
-                <button class="btn btn-secondary" onclick="collapseAll()">− Collapse All</button>
-                <button class="btn btn-secondary" onclick="exportJSON()">📁 JSON</button>
-                <button class="btn btn-secondary" onclick="exportCSV()">📄 CSV</button>
+                <button class="btn btn-secondary" onclick="toggleSearch()">🔎</button>
+                <button class="btn btn-secondary" onclick="expandAll()">+ All</button>
+                <button class="btn btn-secondary" onclick="collapseAll()">− All</button>
+                <button class="btn btn-secondary" onclick="exportJSON()">JSON</button>
+                <button class="btn btn-secondary" onclick="exportCSV()">CSV</button>
+                <button class="btn btn-secondary" onclick="exportTXT()">TXT</button>
             </div>
         </div>
 
-        <!-- ── Search ── -->
+        <!-- Search -->
         <div class="search-bar" id="searchBar">
             <span class="search-icon">🔎</span>
-            <input
-                type="text"
-                class="search-input"
-                id="searchInput"
-                placeholder="Search comments..."
-                oninput="searchComments(this.value)"
-            >
+            <input type="text" class="search-input" id="searchInput" placeholder="Search comments..." oninput="searchComments(this.value)">
             <span class="search-count" id="searchCount"></span>
         </div>
 
-        <!-- ── Status Messages ── -->
-        <div class="status-message status-loading" id="loadingMsg">
-            <span class="spinner"></span> Fetching comments from Reddit...
-        </div>
+        <!-- Status -->
+        <div class="status-message status-loading" id="loadingMsg"><span class="spinner"></span> Fetching comments from Reddit...</div>
         <div class="status-message status-error" id="errorMsg"></div>
         <div class="status-message status-success" id="successMsg"></div>
 
-        <!-- ── Post Header ── -->
+        <!-- Post Header -->
         <div class="post-header" id="postHeader"></div>
 
-        <!-- ── Breadcrumb ── -->
+        <!-- Breadcrumb -->
         <div class="breadcrumb-bar" id="breadcrumbBar"></div>
 
-        <!-- ── Analytics ── -->
+        <!-- Quick-Jump to top comments -->
+        <div class="quickjump-bar" id="quickjumpBar"></div>
+
+        <!-- Analytics -->
         <div class="analytics-panel" id="analyticsPanel"></div>
 
-        <!-- ── Comment Tree ── -->
-        <div class="comment-tree" id="commentTree"></div>
+        <!-- Tabs -->
+        <div class="tab-bar" id="tabBar">
+            <button class="tab-btn active" onclick="switchTab('tree')">🌳 Tree</button>
+            <button class="tab-btn" onclick="switchTab('table')">📊 Table</button>
+        </div>
 
-        <!-- ── Footer ── -->
-        <div class="app-footer" id="appFooter" style="display:none;">
-            Reddit Discussion Explorer • Data fetched from Reddit API via PRAW
+        <!-- Tab Panels -->
+        <div class="tab-panel active" id="treePanel">
+            <div class="comment-tree" id="commentTree"></div>
+        </div>
+        <div class="tab-panel" id="tablePanel">
+            <div class="table-container" id="tableContainer"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="app-footer" id="appFooter">
+            Reddit Discussion Explorer v2 · Sentiment Analysis · Data from Reddit API via PRAW
         </div>
     </div>
 
-    <!-- ══════════════════════════════════════════════════════════
-         JavaScript — Application Logic
-         ══════════════════════════════════════════════════════════ -->
-    <script>
-    /* ── Global State ── */
-    let cachedData = null;
-    let currentTheme = localStorage.getItem('theme') || 'dark';
+    <!-- ══════════════ SIDEBAR ══════════════ -->
+    <div class="sidebar" id="userSidebar">
+        <button class="sidebar-close" onclick="toggleSidebar()">✕</button>
+        <div id="sidebarContent">
+            <h3>👤 User Analytics</h3>
+            <p style="color:var(--text-muted);font-size:.82rem">Click on a username in the comment tree to view their analytics here.</p>
+        </div>
+    </div>
+</div>
 
-    /* Initialize theme */
-    (function initTheme() {
-        document.documentElement.setAttribute('data-theme', currentTheme);
-        updateThemeButton();
-    })();
+<!-- ══════════════════════════════════════════════════════════
+     JavaScript — Application Logic v2
+     ══════════════════════════════════════════════════════════ -->
+<script>
+/* ══════════════ Global State ══════════════ */
+let cachedData = null;
+let currentTheme = localStorage.getItem('theme') || 'dark';
+let tableSortCol = null;
+let tableSortAsc = true;
 
-    /* ══════════════════════════════════════════════════
-       Theme
-       ══════════════════════════════════════════════════ */
+(function(){
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    updateThemeButton();
+})();
 
-    function toggleTheme() {
-        currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', currentTheme);
-        localStorage.setItem('theme', currentTheme);
-        updateThemeButton();
+/* ══════════════ Theme ══════════════ */
+function toggleTheme(){
+    currentTheme = currentTheme==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('theme', currentTheme);
+    updateThemeButton();
+}
+function updateThemeButton(){
+    document.getElementById('themeToggle').textContent = currentTheme==='dark'?'☀️ Light':'🌙 Dark';
+}
+
+/* ══════════════ Sidebar ══════════════ */
+function toggleSidebar(){
+    const sb = document.getElementById('userSidebar');
+    sb.classList.toggle('visible');
+    const btn = document.getElementById('sidebarToggleBtn');
+    btn.classList.toggle('active', sb.classList.contains('visible'));
+}
+
+function showUserSidebar(username){
+    if(!cachedData) return;
+    const ua = cachedData.analytics.user_analytics || {};
+    const u = ua[username];
+    if(!u) return;
+
+    const sb = document.getElementById('userSidebar');
+    if(!sb.classList.contains('visible')) sb.classList.add('visible');
+    document.getElementById('sidebarToggleBtn').classList.add('active');
+
+    const opTag = u.is_post_author ? ' <span style="color:var(--op-color);font-size:.72rem">[OP]</span>' : '';
+    const sentColor = u.sentiment_label==='positive'?'var(--sentiment-positive)':u.sentiment_label==='negative'?'var(--sentiment-negative)':'var(--sentiment-neutral)';
+
+    let topWordsHtml = '';
+    if(u.most_used_words && u.most_used_words.length){
+        topWordsHtml = u.most_used_words.map(([w,c])=>`<span class="word-chip">${esc(w)}<span class="freq">${c}</span></span>`).join('');
     }
 
-    function updateThemeButton() {
-        const btn = document.getElementById('themeToggle');
-        btn.textContent = currentTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
-    }
+    const vocabPct = Math.round(u.vocabulary_richness * 100);
 
-    /* ══════════════════════════════════════════════════
-       Fetch Thread
-       ══════════════════════════════════════════════════ */
+    document.getElementById('sidebarContent').innerHTML = `
+        <h3>👤 ${esc(username)}${opTag}</h3>
 
-    async function fetchThread() {
-        const url = document.getElementById('urlInput').value.trim();
-        if (!url) {
-            showError('Please enter a Reddit post URL.');
-            return;
-        }
+        <div class="sidebar-section">
+            <div class="sidebar-label">Activity</div>
+            <div class="sidebar-value">📝 ${u.total_comments} comment${u.total_comments!==1?'s':''}</div>
+            <div class="sidebar-value">⬆ ${u.total_score} total score (avg ${u.avg_score})</div>
+            <div class="sidebar-value">📏 Deepest reply: depth ${u.deepest_reply}</div>
+        </div>
 
-        /* Gather options */
-        const depth = parseInt(document.getElementById('depthSlider').value);
-        const minScoreRaw = document.getElementById('minScoreInput').value.trim();
-        const minScore = minScoreRaw !== '' ? parseInt(minScoreRaw) : null;
-        const sort = document.getElementById('sortSelect').value;
-        const skipDeleted = document.getElementById('skipDeletedCheck').checked;
-
-        /* UI: loading state */
-        const fetchBtn = document.getElementById('fetchBtn');
-        fetchBtn.disabled = true;
-        showLoading();
-        hideError();
-        hideSuccess();
-        clearResults();
-
-        try {
-            const response = await fetch('/api/fetch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    url,
-                    depth,
-                    min_score: minScore,
-                    sort,
-                    skip_deleted: skipDeleted,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || `Server error (${response.status})`);
-            }
-
-            cachedData = data;
-
-            renderPost(data.post);
-            renderAnalytics(data.analytics);
-            renderCommentTree(data.comments, document.getElementById('commentTree'));
-            showSuccess(
-                `Fetched ${data.analytics.total_comments} comments in ${data.fetch_time_ms}ms ` +
-                `(Thread ID: ${data.thread_id})`
-            );
-            document.getElementById('appFooter').style.display = 'block';
-
-        } catch (err) {
-            showError(err.message);
-        } finally {
-            fetchBtn.disabled = false;
-            hideLoading();
-        }
-    }
-
-    /* ══════════════════════════════════════════════════
-       Render Post Header
-       ══════════════════════════════════════════════════ */
-
-    function renderPost(post) {
-        const el = document.getElementById('postHeader');
-
-        let flagsHtml = '';
-        if (post.is_nsfw) flagsHtml += '<span class="flag-badge flag-nsfw">NSFW</span>';
-        if (post.is_locked) flagsHtml += '<span class="flag-badge flag-locked">Locked</span>';
-        if (post.is_archived) flagsHtml += '<span class="flag-badge flag-archived">Archived</span>';
-        if (post.flair) flagsHtml += `<span class="flag-badge flag-flair">${escapeHtml(post.flair)}</span>`;
-
-        el.innerHTML = `
-            <div class="post-title">${escapeHtml(post.title)}</div>
-            <div class="post-meta">
-                <span class="subreddit">r/${escapeHtml(post.subreddit)}</span> •
-                <span class="author">u/${escapeHtml(post.author)}</span> •
-                ${post.score} points •
-                ${post.num_comments} comments
-                (${post.num_top_level} top-level) •
-                ${escapeHtml(post.created_relative)}
-                ${post.upvote_ratio ? ` • ${Math.round(post.upvote_ratio * 100)}% upvoted` : ''}
+        <div class="sidebar-section">
+            <div class="sidebar-label">Writing Stats</div>
+            <div class="sidebar-value">📖 ${u.total_words.toLocaleString()} total words</div>
+            <div class="sidebar-value">🔤 ${u.unique_words.toLocaleString()} unique words (after stopwords)</div>
+            <div class="sidebar-value">
+                🧠 Vocabulary richness: ${vocabPct}%
+                <div class="sidebar-bar"><div class="sidebar-bar-fill" style="width:${vocabPct}%;background:var(--accent)"></div></div>
             </div>
-            ${flagsHtml ? `<div class="post-flags">${flagsHtml}</div>` : ''}
-            ${post.body ? `<div class="post-body">${escapeHtml(post.body)}</div>` : ''}
-        `;
-        el.classList.add('visible');
-    }
+        </div>
 
-    /* ══════════════════════════════════════════════════
-       Render Analytics
-       ══════════════════════════════════════════════════ */
-
-    function renderAnalytics(stats) {
-        const el = document.getElementById('analyticsPanel');
-
-        const cards = [
-            { value: stats.total_comments, label: 'Comments' },
-            { value: stats.unique_author_count, label: 'Authors' },
-            { value: stats.avg_score, label: 'Avg Score' },
-            { value: stats.max_depth_reached, label: 'Max Depth' },
-            { value: stats.op_replies, label: 'OP Replies' },
-            { value: stats.gilded_count, label: 'Gilded' },
-            { value: stats.deleted_count, label: 'Deleted' },
-            { value: stats.negative_score_count, label: 'Negative' },
-        ];
-
-        el.innerHTML = `
-            <div class="analytics-title">Thread Analytics</div>
-            <div class="analytics-grid">
-                ${cards.map(c => `
-                    <div class="stat-card">
-                        <div class="stat-value">${c.value}</div>
-                        <div class="stat-label">${c.label}</div>
-                    </div>
-                `).join('')}
+        <div class="sidebar-section">
+            <div class="sidebar-label">Sentiment</div>
+            <div class="sidebar-value" style="color:${sentColor}">
+                ${u.sentiment_label.charAt(0).toUpperCase()+u.sentiment_label.slice(1)} (avg: ${u.sentiment_avg})
             </div>
-            ${stats.top_comment_author ? `
-                <div style="margin-top:12px;font-size:0.82rem;color:var(--text-muted);">
-                    Top comment by <span style="color:var(--accent)">${escapeHtml(stats.top_comment_author)}</span>
-                    with ${stats.top_comment_score} points
+            <div class="sidebar-bar"><div class="sidebar-bar-fill" style="width:${Math.round(Math.abs(u.sentiment_avg)*100)}%;background:${sentColor}"></div></div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-label">Top Words (stopwords removed)</div>
+            <div style="margin-top:4px">${topWordsHtml || '<span style="color:var(--text-muted);font-size:.82rem">No content words found</span>'}</div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-label">Comments in Thread</div>
+            <div style="margin-top:4px">
+                ${u.comments.map(h=>`<span class="quickjump-btn" onclick="scrollToHierarchy('${h}')" style="margin:2px">${h}</span>`).join('')}
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-label">Timestamps</div>
+            <div class="sidebar-value" style="font-size:.78rem">First: ${esc(u.first_comment_readable)}</div>
+            <div class="sidebar-value" style="font-size:.78rem">Last: ${esc(u.last_comment_readable)}</div>
+        </div>
+    `;
+}
+
+/* ══════════════ Fetch ══════════════ */
+async function fetchThread(){
+    const url = document.getElementById('urlInput').value.trim();
+    if(!url){showError('Please enter a Reddit post URL.');return}
+    const depth=parseInt(document.getElementById('depthSlider').value);
+    const msRaw=document.getElementById('minScoreInput').value.trim();
+    const minScore=msRaw!==''?parseInt(msRaw):null;
+    const sort=document.getElementById('sortSelect').value;
+    const skipDel=document.getElementById('skipDeletedCheck').checked;
+
+    document.getElementById('fetchBtn').disabled=true;
+    showLoading();hideError();hideSuccess();clearResults();
+
+    try{
+        const r=await fetch('/api/fetch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,depth,min_score:minScore,sort,skip_deleted:skipDel})});
+        const data=await r.json();
+        if(!r.ok) throw new Error(data.error||`Server error (${r.status})`);
+        cachedData=data;
+        renderPost(data.post);
+        renderAnalytics(data.analytics);
+        renderCommentTree(data.comments, document.getElementById('commentTree'));
+        renderQuickJump(data.comments);
+        buildTable(data.comments);
+        document.getElementById('tabBar').classList.add('visible');
+        showSuccess(`Fetched ${data.analytics.total_comments} comments in ${data.fetch_time_ms}ms (Thread: ${data.thread_id})`);
+        document.getElementById('appFooter').classList.add('visible');
+    }catch(err){showError(err.message)}
+    finally{document.getElementById('fetchBtn').disabled=false;hideLoading()}
+}
+
+/* ══════════════ Render Post ══════════════ */
+function renderPost(post){
+    const el=document.getElementById('postHeader');
+    let flags='';
+    if(post.is_nsfw)flags+='<span class="flag-badge flag-nsfw">NSFW</span>';
+    if(post.is_locked)flags+='<span class="flag-badge flag-locked">Locked</span>';
+    if(post.is_archived)flags+='<span class="flag-badge flag-archived">Archived</span>';
+    if(post.flair)flags+=`<span class="flag-badge flag-flair">${esc(post.flair)}</span>`;
+
+    const s=post.sentiment||{};
+    const sl=s.label||'neutral';
+    const sentBadge=`<span class="post-sentiment-badge sentiment-${sl}-badge">${sl} (${(s.score||0).toFixed(2)})</span>`;
+
+    el.innerHTML=`
+        <div class="post-title">${esc(post.title)}${sentBadge}</div>
+        <div class="post-meta">
+            <span class="subreddit">r/${esc(post.subreddit)}</span> ·
+            <span class="author" onclick="showUserSidebar('${escAttr(post.author)}')">u/${esc(post.author)}</span> ·
+            ${post.score} pts · ${post.num_comments} comments (${post.num_top_level} top-level) ·
+            ${esc(post.created_relative)}
+            ${post.upvote_ratio?` · ${Math.round(post.upvote_ratio*100)}% upvoted`:''}
+        </div>
+        ${flags?`<div class="post-flags">${flags}</div>`:''}
+        ${post.body?`<div class="post-body">${esc(post.body)}</div>`:''}
+    `;
+    el.classList.add('visible');
+}
+
+/* ══════════════ Render Analytics ══════════════ */
+function renderAnalytics(stats){
+    const el=document.getElementById('analyticsPanel');
+    const cards=[
+        {v:stats.total_comments,l:'Comments'},
+        {v:stats.unique_author_count,l:'Authors'},
+        {v:stats.avg_score,l:'Avg Score'},
+        {v:stats.max_depth_reached,l:'Max Depth'},
+        {v:stats.op_replies,l:'OP Replies'},
+        {v:stats.gilded_count,l:'Gilded'},
+        {v:stats.deleted_count,l:'Deleted'},
+        {v:stats.negative_score_count,l:'Neg Score'},
+    ];
+    const total=stats.sentiment_positive_count+stats.sentiment_neutral_count+stats.sentiment_negative_count||1;
+    const pp=Math.round(stats.sentiment_positive_count/total*100);
+    const np=Math.round(stats.sentiment_negative_count/total*100);
+    const nup=100-pp-np;
+
+    const eng=stats.engagement_duration||{};
+
+    el.innerHTML=`
+        <div class="analytics-title">Thread Analytics</div>
+        <div class="analytics-grid">${cards.map(c=>`<div class="stat-card"><div class="stat-value">${c.v}</div><div class="stat-label">${c.l}</div></div>`).join('')}</div>
+        <div class="sentiment-summary">
+            <div class="analytics-title" style="margin-top:0">Sentiment Distribution</div>
+            <div class="sentiment-bar">
+                <div class="positive" style="width:${pp}%" title="${pp}% positive"></div>
+                <div class="neutral" style="width:${nup}%" title="${nup}% neutral"></div>
+                <div class="negative" style="width:${np}%" title="${np}% negative"></div>
+            </div>
+            <div class="sentiment-legend">
+                <span><span class="sentiment-dot" style="background:var(--sentiment-positive)"></span> Positive ${stats.sentiment_positive_count} (${pp}%)</span>
+                <span><span class="sentiment-dot" style="background:var(--sentiment-neutral)"></span> Neutral ${stats.sentiment_neutral_count} (${nup}%)</span>
+                <span><span class="sentiment-dot" style="background:var(--sentiment-negative)"></span> Negative ${stats.sentiment_negative_count} (${np}%)</span>
+            </div>
+            <div style="margin-top:6px;font-size:.8rem;color:var(--text-muted)">
+                Overall: <strong style="color:${stats.sentiment_overall_label==='positive'?'var(--sentiment-positive)':stats.sentiment_overall_label==='negative'?'var(--sentiment-negative)':'var(--sentiment-neutral)'}">${stats.sentiment_overall_label}</strong>
+                (avg score: ${stats.sentiment_avg})
+            </div>
+        </div>
+        <div class="engagement-info">
+            <strong>Engagement Duration:</strong> ${esc(eng.text||'N/A')}
+            ${stats.top_comment_author?`<br><strong>Top Comment:</strong> by <span style="color:var(--accent);cursor:pointer" onclick="showUserSidebar('${escAttr(stats.top_comment_author)}')">${esc(stats.top_comment_author)}</span> (${stats.top_comment_score} pts)`:''}
+        </div>
+    `;
+    el.classList.add('visible');
+}
+
+/* ══════════════ Render Comment Tree ══════════════ */
+function renderCommentTree(comments, container){
+    comments.forEach(comment=>{
+        const node=document.createElement('div');
+        node.className='comment-node';
+        if(comment._truncated){
+            node.innerHTML=`<div class="truncated-notice">⋯ Replies truncated at depth ${comment.depth}</div>`;
+            container.appendChild(node);return;
+        }
+        const hasReplies=comment.replies&&comment.replies.length>0;
+        const rc=hasReplies?countAll(comment.replies):0;
+        let sc='neutral';if(comment.score>0)sc='positive';if(comment.score<0)sc='negative';
+        const sent=comment.sentiment||{};
+        const sl=sent.label||'neutral';
+
+        const card=document.createElement('div');
+        card.className='comment-card'+(comment.is_op?' is-op':'');
+        card.setAttribute('data-hierarchy',comment.hierarchy);
+        card.setAttribute('data-author',(comment.author||'').toLowerCase());
+        card.setAttribute('data-body',(comment.body||'').toLowerCase());
+
+        card.innerHTML=`
+            <div class="comment-header">
+                <span class="comment-hierarchy">${comment.hierarchy}</span>
+                <span class="comment-author ${comment.is_deleted?'is-deleted':''}" ${comment.is_deleted?'':`onclick="showUserSidebar('${escAttr(comment.author)}')"`}>${esc(comment.author)}</span>
+                ${comment.is_op?'<span class="op-badge">OP</span>':''}
+                ${comment.gilded>0?`<span class="gilded-badge">${'★'.repeat(Math.min(comment.gilded,5))}</span>`:''}
+                <span class="comment-score ${sc}">${comment.score>0?'+':''}${comment.score} pts</span>
+                <span class="sentiment-indicator ${sl}" onclick="toggleSentimentTooltip(event,this)" title="Click for details">${sl==='positive'?'😊':sl==='negative'?'😠':'😐'} ${(sent.score||0).toFixed(2)}</span>
+                <span class="comment-time">${esc(comment.created_relative)}</span>
+                <span class="comment-id">${esc(comment.id||'')}</span>
+                <a class="comment-permalink" href="${esc(comment.permalink)}" target="_blank" rel="noopener">🔗</a>
+            </div>
+            <div class="comment-body">${esc(comment.body)}</div>
+            ${hasReplies?`<button class="toggle-btn" onclick="toggleReplies(this)">▼ ${rc} ${rc===1?'reply':'replies'}</button>`:''}
+            <div class="sentiment-tooltip" id="st-${comment.hierarchy.replace(/\./g,'-')}">
+                <div class="row"><span>Score</span><span class="val">${(sent.score||0).toFixed(4)}</span></div>
+                <div class="row"><span>Magnitude</span><span class="val">${(sent.magnitude||0).toFixed(4)}</span></div>
+                <div class="row"><span>Positive words</span><span class="val">${sent.positive_count||0}</span></div>
+                <div class="row"><span>Negative words</span><span class="val">${sent.negative_count||0}</span></div>
+                <div class="sentiment-words">
+                    ${(sent.positive_words||[]).map(w=>`<span class="pos-word">+${w}</span> `).join('')}
+                    ${(sent.negative_words||[]).map(w=>`<span class="neg-word">-${w}</span> `).join('')}
                 </div>
-            ` : ''}
+            </div>
         `;
-        el.classList.add('visible');
-    }
 
-    /* ══════════════════════════════════════════════════
-       Render Comment Tree
-       ══════════════════════════════════════════════════ */
-
-    function renderCommentTree(comments, container) {
-        comments.forEach(comment => {
-            const node = document.createElement('div');
-            node.className = 'comment-node';
-
-            /* ── Truncation notice ── */
-            if (comment._truncated) {
-                node.innerHTML = `
-                    <div class="truncated-notice">
-                        ⋯ Replies truncated at depth ${comment.depth}
-                    </div>
-                `;
-                container.appendChild(node);
-                return;
-            }
-
-            const hasReplies = comment.replies && comment.replies.length > 0;
-            const replyCount = hasReplies ? countAllReplies(comment.replies) : 0;
-
-            /* ── Score class ── */
-            let scoreClass = 'neutral';
-            if (comment.score > 0) scoreClass = 'positive';
-            if (comment.score < 0) scoreClass = 'negative';
-
-            /* ── Comment Card ── */
-            const card = document.createElement('div');
-            card.className = 'comment-card' + (comment.is_op ? ' is-op' : '');
-            card.setAttribute('data-hierarchy', comment.hierarchy);
-            card.setAttribute('data-author', comment.author.toLowerCase());
-            card.setAttribute('data-body', comment.body.toLowerCase());
-
-            card.innerHTML = `
-                <div class="comment-header">
-                    <span class="comment-hierarchy">${comment.hierarchy}</span>
-                    <span class="comment-author ${comment.is_deleted ? 'is-deleted' : ''}">
-                        ${escapeHtml(comment.author)}
-                    </span>
-                    ${comment.is_op ? '<span class="op-badge">OP</span>' : ''}
-                    ${comment.gilded > 0 ? `<span class="gilded-badge">${'★'.repeat(Math.min(comment.gilded, 5))}</span>` : ''}
-                    <span class="comment-score ${scoreClass}">
-                        ${comment.score > 0 ? '+' : ''}${comment.score} pts
-                    </span>
-                    <span class="comment-time">${escapeHtml(comment.created_relative)}</span>
-                    <span class="comment-id">${escapeHtml(comment.id || '')}</span>
-                    <a class="comment-permalink" href="${escapeHtml(comment.permalink)}" target="_blank" rel="noopener">🔗</a>
-                </div>
-                <div class="comment-body">${escapeHtml(comment.body)}</div>
-                ${hasReplies ? `
-                    <button class="toggle-btn" onclick="toggleReplies(this)">
-                        ▼ ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}
-                    </button>
-                ` : ''}
-            `;
-
-            /* Breadcrumb on click */
-            card.addEventListener('click', function (e) {
-                if (e.target.closest('.toggle-btn') || e.target.closest('.comment-permalink')) return;
-                showBreadcrumb(comment.hierarchy);
-                /* Remove previous highlights */
-                document.querySelectorAll('.comment-card.highlight').forEach(el => el.classList.remove('highlight'));
-                card.classList.add('highlight');
-            });
-
-            node.appendChild(card);
-
-            /* ── Replies Container ── */
-            if (hasReplies) {
-                const repliesDiv = document.createElement('div');
-                repliesDiv.className = 'replies-container';
-                renderCommentTree(comment.replies, repliesDiv);
-                node.appendChild(repliesDiv);
-            }
-
-            container.appendChild(node);
-        });
-    }
-
-    function countAllReplies(replies) {
-        let count = 0;
-        for (const r of replies) {
-            if (r._truncated) continue;
-            count++;
-            if (r.replies) count += countAllReplies(r.replies);
-        }
-        return count;
-    }
-
-    /* ══════════════════════════════════════════════════
-       Toggle Replies
-       ══════════════════════════════════════════════════ */
-
-    function toggleReplies(btn) {
-        const commentNode = btn.closest('.comment-node');
-        const repliesDiv = commentNode.querySelector(':scope > .replies-container');
-        if (!repliesDiv) return;
-
-        const isCollapsed = repliesDiv.classList.toggle('collapsed');
-        const count = repliesDiv.querySelectorAll('.comment-card').length;
-
-        if (isCollapsed) {
-            btn.textContent = `▶ ${count} ${count === 1 ? 'reply' : 'replies'} (hidden)`;
-        } else {
-            btn.textContent = `▼ ${count} ${count === 1 ? 'reply' : 'replies'}`;
-        }
-    }
-
-    function expandAll() {
-        document.querySelectorAll('.replies-container').forEach(el => {
-            el.classList.remove('collapsed');
-        });
-        document.querySelectorAll('.toggle-btn').forEach(btn => {
-            const commentNode = btn.closest('.comment-node');
-            const repliesDiv = commentNode.querySelector(':scope > .replies-container');
-            if (repliesDiv) {
-                const count = repliesDiv.querySelectorAll('.comment-card').length;
-                btn.textContent = `▼ ${count} ${count === 1 ? 'reply' : 'replies'}`;
-            }
-        });
-    }
-
-    function collapseAll() {
-        document.querySelectorAll('.replies-container').forEach(el => {
-            el.classList.add('collapsed');
-        });
-        document.querySelectorAll('.toggle-btn').forEach(btn => {
-            const commentNode = btn.closest('.comment-node');
-            const repliesDiv = commentNode.querySelector(':scope > .replies-container');
-            if (repliesDiv) {
-                const count = repliesDiv.querySelectorAll('.comment-card').length;
-                btn.textContent = `▶ ${count} ${count === 1 ? 'reply' : 'replies'} (hidden)`;
-            }
-        });
-    }
-
-    /* ══════════════════════════════════════════════════
-       Breadcrumb Navigation
-       ══════════════════════════════════════════════════ */
-
-    function showBreadcrumb(hierarchy) {
-        const bar = document.getElementById('breadcrumbBar');
-        const parts = hierarchy.split('.');
-        let html = '<span class="breadcrumb-link" onclick="scrollToHierarchy(\'root\')">Thread</span>';
-
-        let accumulated = '';
-        for (let i = 0; i < parts.length; i++) {
-            accumulated = accumulated ? `${accumulated}.${parts[i]}` : parts[i];
-            const label = i === 0 ? `Comment ${parts[0]}` : `Reply ${accumulated}`;
-            html += `<span class="breadcrumb-sep">›</span>`;
-            html += `<span class="breadcrumb-link" onclick="scrollToHierarchy('${accumulated}')">${label}</span>`;
-        }
-
-        bar.innerHTML = html;
-        bar.classList.add('visible');
-    }
-
-    function scrollToHierarchy(hierarchy) {
-        if (hierarchy === 'root') {
-            document.getElementById('postHeader').scrollIntoView({ behavior: 'smooth' });
-            return;
-        }
-
-        const card = document.querySelector(`.comment-card[data-hierarchy="${hierarchy}"]`);
-        if (card) {
-            /* Ensure parents are expanded */
-            let parent = card.closest('.replies-container');
-            while (parent) {
-                parent.classList.remove('collapsed');
-                parent = parent.parentElement?.closest('.replies-container');
-            }
-
-            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.addEventListener('click',function(e){
+            if(e.target.closest('.toggle-btn')||e.target.closest('.comment-permalink')||e.target.closest('.comment-author')||e.target.closest('.sentiment-indicator'))return;
+            showBreadcrumb(comment.hierarchy);
+            document.querySelectorAll('.comment-card.highlight').forEach(el=>el.classList.remove('highlight'));
             card.classList.add('highlight');
-            setTimeout(() => card.classList.remove('highlight'), 2000);
-        }
-    }
-
-    /* ══════════════════════════════════════════════════
-       Search
-       ══════════════════════════════════════════════════ */
-
-    function toggleSearch() {
-        const bar = document.getElementById('searchBar');
-        bar.classList.toggle('visible');
-        if (bar.classList.contains('visible')) {
-            document.getElementById('searchInput').focus();
-        } else {
-            document.getElementById('searchInput').value = '';
-            searchComments('');
-        }
-    }
-
-    function searchComments(query) {
-        const cards = document.querySelectorAll('.comment-card');
-        const q = query.toLowerCase().trim();
-        let matchCount = 0;
-
-        cards.forEach(card => {
-            if (!q) {
-                card.classList.remove('search-match');
-                return;
-            }
-
-            const author = card.getAttribute('data-author') || '';
-            const body = card.getAttribute('data-body') || '';
-            const hierarchy = card.getAttribute('data-hierarchy') || '';
-
-            const matches = author.includes(q) || body.includes(q) || hierarchy.includes(q);
-            card.classList.toggle('search-match', matches);
-            if (matches) matchCount++;
         });
 
-        const countEl = document.getElementById('searchCount');
-        if (q) {
-            countEl.textContent = `${matchCount} match${matchCount !== 1 ? 'es' : ''}`;
-        } else {
-            countEl.textContent = '';
+        node.appendChild(card);
+        if(hasReplies){
+            const rd=document.createElement('div');
+            rd.className='replies-container';
+            renderCommentTree(comment.replies,rd);
+            node.appendChild(rd);
         }
+        container.appendChild(node);
+    });
+}
+function countAll(replies){let c=0;for(const r of replies){if(r._truncated)continue;c++;if(r.replies)c+=countAll(r.replies)}return c}
+
+/* ══════════════ Sentiment Tooltip ══════════════ */
+function toggleSentimentTooltip(e, el){
+    e.stopPropagation();
+    const card=el.closest('.comment-card');
+    const tip=card.querySelector('.sentiment-tooltip');
+    if(!tip)return;
+    document.querySelectorAll('.sentiment-tooltip.visible').forEach(t=>{if(t!==tip)t.classList.remove('visible')});
+    tip.classList.toggle('visible');
+}
+document.addEventListener('click',function(){document.querySelectorAll('.sentiment-tooltip.visible').forEach(t=>t.classList.remove('visible'))});
+
+/* ══════════════ Quick Jump ══════════════ */
+function renderQuickJump(comments){
+    const bar=document.getElementById('quickjumpBar');
+    if(!comments||comments.length===0){bar.classList.remove('visible');return}
+    const sorted=[...comments].filter(c=>!c._truncated).sort((a,b)=>b.score-a.score);
+    const top=sorted.slice(0,10);
+    if(top.length===0){bar.classList.remove('visible');return}
+    bar.innerHTML=`<span class="qj-label">⚡ Top Comments:</span>${top.map(c=>`<button class="quickjump-btn" onclick="scrollToHierarchy('${c.hierarchy}')" title="${esc(c.author)} (${c.score} pts)">Comment ${c.hierarchy} (${c.score}↑)</button>`).join('')}`;
+    bar.classList.add('visible');
+}
+
+/* ══════════════ Table View ══════════════ */
+function buildTable(comments){
+    const flat=flattenTree(comments);
+    if(!flat.length){document.getElementById('tableContainer').innerHTML='<p style="color:var(--text-muted)">No comments.</p>';return}
+
+    const cols=[
+        {key:'hierarchy',label:'#',w:'70px'},
+        {key:'author',label:'Author',w:'130px'},
+        {key:'score',label:'Score',w:'70px'},
+        {key:'sentiment_score',label:'Sentiment',w:'90px'},
+        {key:'depth',label:'Depth',w:'60px'},
+        {key:'created_relative',label:'When',w:'110px'},
+        {key:'body',label:'Body',w:'auto'},
+    ];
+
+    let html=`<table class="comment-table"><thead><tr>${cols.map(c=>`<th style="width:${c.w}" onclick="sortTable('${c.key}')">${c.label}<span class="sort-arrow" id="sa-${c.key}"></span></th>`).join('')}</tr></thead><tbody>`;
+
+    flat.forEach(c=>{
+        const sent=c.sentiment||{};
+        const sentScore=(sent.score||0).toFixed(2);
+        const sentLabel=sent.label||'neutral';
+        let sc='neutral';if(c.score>0)sc='positive';if(c.score<0)sc='negative';
+        const body=esc((c.body||'').substring(0,120));
+
+        html+=`<tr>
+            <td>${c.hierarchy}</td>
+            <td class="author-cell" onclick="showUserSidebar('${escAttr(c.author)}')">${esc(c.author)}${c.is_op?' <span style="color:var(--op-color);font-size:.7rem">[OP]</span>':''}</td>
+            <td class="score-cell ${sc}">${c.score>0?'+':''}${c.score}</td>
+            <td class="sentiment-cell ${sentLabel}">${sentScore}</td>
+            <td>${c.depth}</td>
+            <td>${esc(c.created_relative)}</td>
+            <td class="body-cell" onclick="scrollToHierarchy('${c.hierarchy}')" title="Click to jump">${body}</td>
+        </tr>`;
+    });
+
+    html+='</tbody></table>';
+    document.getElementById('tableContainer').innerHTML=html;
+}
+
+function sortTable(key){
+    if(!cachedData)return;
+    if(tableSortCol===key)tableSortAsc=!tableSortAsc;else{tableSortCol=key;tableSortAsc=true}
+    const flat=flattenTree(cachedData.comments);
+    flat.sort((a,b)=>{
+        let va=a[key]??a.sentiment?.[key==='sentiment_score'?'score':key]??'';
+        let vb=b[key]??b.sentiment?.[key==='sentiment_score'?'score':key]??'';
+        if(key==='sentiment_score'){va=(a.sentiment||{}).score||0;vb=(b.sentiment||{}).score||0}
+        if(typeof va==='number'&&typeof vb==='number')return tableSortAsc?va-vb:vb-va;
+        return tableSortAsc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
+    });
+    buildTableFromFlat(flat);
+    document.querySelectorAll('.sort-arrow').forEach(el=>el.textContent='');
+    const arrow=document.getElementById(`sa-${key}`);
+    if(arrow)arrow.textContent=tableSortAsc?' ▲':' ▼';
+}
+
+function buildTableFromFlat(flat){
+    const cols=[
+        {key:'hierarchy',label:'#',w:'70px'},
+        {key:'author',label:'Author',w:'130px'},
+        {key:'score',label:'Score',w:'70px'},
+        {key:'sentiment_score',label:'Sentiment',w:'90px'},
+        {key:'depth',label:'Depth',w:'60px'},
+        {key:'created_relative',label:'When',w:'110px'},
+        {key:'body',label:'Body',w:'auto'},
+    ];
+    let html=`<table class="comment-table"><thead><tr>${cols.map(c=>`<th style="width:${c.w}" onclick="sortTable('${c.key}')">${c.label}<span class="sort-arrow" id="sa-${c.key}"></span></th>`).join('')}</tr></thead><tbody>`;
+    flat.forEach(c=>{
+        const sent=c.sentiment||{};const sentScore=(sent.score||0).toFixed(2);const sentLabel=sent.label||'neutral';
+        let sc='neutral';if(c.score>0)sc='positive';if(c.score<0)sc='negative';
+        html+=`<tr><td>${c.hierarchy}</td><td class="author-cell" onclick="showUserSidebar('${escAttr(c.author)}')">${esc(c.author)}${c.is_op?' <span style="color:var(--op-color);font-size:.7rem">[OP]</span>':''}</td><td class="score-cell ${sc}">${c.score>0?'+':''}${c.score}</td><td class="sentiment-cell ${sentLabel}">${sentScore}</td><td>${c.depth}</td><td>${esc(c.created_relative)}</td><td class="body-cell" onclick="scrollToHierarchy('${c.hierarchy}')">${esc((c.body||'').substring(0,120))}</td></tr>`;
+    });
+    html+='</tbody></table>';
+    document.getElementById('tableContainer').innerHTML=html;
+    // Re-apply sort arrow
+    if(tableSortCol){
+        const arrow=document.getElementById(`sa-${tableSortCol}`);
+        if(arrow)arrow.textContent=tableSortAsc?' ▲':' ▼';
     }
+}
 
-    /* ══════════════════════════════════════════════════
-       Export
-       ══════════════════════════════════════════════════ */
+/* ══════════════ Tabs ══════════════ */
+function switchTab(tab){
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.querySelector(`.tab-btn[onclick*="${tab}"]`).classList.add('active');
+    document.getElementById(tab+'Panel').classList.add('active');
+}
 
-    function exportJSON() {
-        if (!cachedData) {
-            showError('No data to export. Fetch a thread first.');
-            return;
-        }
+/* ══════════════ Toggle / Expand / Collapse ══════════════ */
+function toggleReplies(btn){
+    const node=btn.closest('.comment-node');
+    const rd=node.querySelector(':scope > .replies-container');
+    if(!rd)return;
+    const col=rd.classList.toggle('collapsed');
+    const cnt=rd.querySelectorAll('.comment-card').length;
+    btn.textContent=col?`▶ ${cnt} ${cnt===1?'reply':'replies'} (hidden)`:`▼ ${cnt} ${cnt===1?'reply':'replies'}`;
+}
+function expandAll(){document.querySelectorAll('.replies-container').forEach(el=>el.classList.remove('collapsed'));document.querySelectorAll('.toggle-btn').forEach(b=>{const n=b.closest('.comment-node');const r=n.querySelector(':scope > .replies-container');if(r){const c=r.querySelectorAll('.comment-card').length;b.textContent=`▼ ${c} ${c===1?'reply':'replies'}`}})}
+function collapseAll(){document.querySelectorAll('.replies-container').forEach(el=>el.classList.add('collapsed'));document.querySelectorAll('.toggle-btn').forEach(b=>{const n=b.closest('.comment-node');const r=n.querySelector(':scope > .replies-container');if(r){const c=r.querySelectorAll('.comment-card').length;b.textContent=`▶ ${c} ${c===1?'reply':'replies'} (hidden)`}})}
 
-        const blob = new Blob(
-            [JSON.stringify(cachedData, null, 2)],
-            { type: 'application/json' }
-        );
-        downloadBlob(blob, `reddit_thread_${cachedData.thread_id}.json`);
+/* ══════════════ Breadcrumb ══════════════ */
+function showBreadcrumb(h){
+    const bar=document.getElementById('breadcrumbBar');
+    const parts=h.split('.');
+    let html='<span class="breadcrumb-link" onclick="scrollToHierarchy(\'root\')">Thread</span>';
+    let acc='';
+    for(let i=0;i<parts.length;i++){
+        acc=acc?`${acc}.${parts[i]}`:parts[i];
+        const label=i===0?`Comment ${parts[0]}`:`Reply ${acc}`;
+        html+=`<span class="breadcrumb-sep">›</span><span class="breadcrumb-link" onclick="scrollToHierarchy('${acc}')">${label}</span>`;
     }
+    bar.innerHTML=html;bar.classList.add('visible');
+}
+function scrollToHierarchy(h){
+    if(h==='root'){document.getElementById('postHeader').scrollIntoView({behavior:'smooth'});return}
+    const card=document.querySelector(`.comment-card[data-hierarchy="${h}"]`);
+    if(card){
+        let parent=card.closest('.replies-container');
+        while(parent){parent.classList.remove('collapsed');parent=parent.parentElement?.closest('.replies-container')}
+        card.scrollIntoView({behavior:'smooth',block:'center'});
+        card.classList.add('highlight');setTimeout(()=>card.classList.remove('highlight'),2500);
+    }
+}
 
-    function exportCSV() {
-        if (!cachedData) {
-            showError('No data to export. Fetch a thread first.');
-            return;
-        }
+/* ══════════════ Search ══════════════ */
+function toggleSearch(){
+    const bar=document.getElementById('searchBar');
+    bar.classList.toggle('visible');
+    if(bar.classList.contains('visible'))document.getElementById('searchInput').focus();
+    else{document.getElementById('searchInput').value='';searchComments('')}
+}
+function searchComments(q){
+    const cards=document.querySelectorAll('.comment-card');
+    q=q.toLowerCase().trim();let mc=0;
+    cards.forEach(card=>{
+        if(!q){card.classList.remove('search-match');return}
+        const a=card.getAttribute('data-author')||'';
+        const b=card.getAttribute('data-body')||'';
+        const h=card.getAttribute('data-hierarchy')||'';
+        const m=a.includes(q)||b.includes(q)||h.includes(q);
+        card.classList.toggle('search-match',m);if(m)mc++;
+    });
+    document.getElementById('searchCount').textContent=q?`${mc} match${mc!==1?'es':''}`:'';
+}
 
-        const flat = flattenTree(cachedData.comments);
-        if (flat.length === 0) {
-            showError('No comments to export.');
-            return;
-        }
-
-        const headers = [
-            'id', 'hierarchy', 'depth', 'author', 'score',
-            'is_op', 'is_deleted', 'gilded', 'created_readable', 'permalink', 'body'
-        ];
-
-        let csvContent = headers.join(',') + '\n';
-
-        flat.forEach(row => {
-            const values = headers.map(h => {
-                let val = row[h] !== undefined && row[h] !== null ? String(row[h]) : '';
-                /* Escape CSV values */
-                if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-                    val = '"' + val.replace(/"/g, '""') + '"';
-                }
-                return val;
-            });
-            csvContent += values.join(',') + '\n';
+/* ══════════════ Export ══════════════ */
+function exportJSON(){
+    if(!cachedData){showError('No data. Fetch first.');return}
+    dl(new Blob([JSON.stringify(cachedData,null,2)],{type:'application/json'}),`reddit_${cachedData.thread_id}.json`);
+}
+function exportCSV(){
+    if(!cachedData){showError('No data. Fetch first.');return}
+    const flat=flattenTree(cachedData.comments);if(!flat.length){showError('No comments.');return}
+    const hd=['id','hierarchy','depth','author','score','is_op','is_deleted','gilded','sentiment_score','sentiment_label','created_readable','permalink','body'];
+    let csv=hd.join(',')+'\n';
+    flat.forEach(row=>{
+        const vals=hd.map(h=>{
+            let v;
+            if(h==='sentiment_score')v=((row.sentiment||{}).score||0).toFixed(4);
+            else if(h==='sentiment_label')v=(row.sentiment||{}).label||'neutral';
+            else v=row[h]!==undefined&&row[h]!==null?String(row[h]):'';
+            if(v.includes(',')||v.includes('"')||v.includes('\n'))v='"'+v.replace(/"/g,'""')+'"';
+            return v;
         });
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        downloadBlob(blob, `reddit_thread_${cachedData.thread_id}.csv`);
-    }
-
-    function flattenTree(comments, result) {
-        result = result || [];
-        for (const c of comments) {
-            if (c._truncated) continue;
-            const flat = Object.assign({}, c);
-            delete flat.replies;
-            result.push(flat);
-            if (c.replies) flattenTree(c.replies, result);
-        }
-        return result;
-    }
-
-    function downloadBlob(blob, filename) {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showSuccess(`Exported: ${filename}`);
-    }
-
-    /* ══════════════════════════════════════════════════
-       UI Helpers
-       ══════════════════════════════════════════════════ */
-
-    function showLoading() {
-        document.getElementById('loadingMsg').classList.add('visible');
-    }
-
-    function hideLoading() {
-        document.getElementById('loadingMsg').classList.remove('visible');
-    }
-
-    function showError(msg) {
-        const el = document.getElementById('errorMsg');
-        el.textContent = `❌ ${msg}`;
-        el.classList.add('visible');
-    }
-
-    function hideError() {
-        document.getElementById('errorMsg').classList.remove('visible');
-    }
-
-    function showSuccess(msg) {
-        const el = document.getElementById('successMsg');
-        el.textContent = `✓ ${msg}`;
-        el.classList.add('visible');
-    }
-
-    function hideSuccess() {
-        document.getElementById('successMsg').classList.remove('visible');
-    }
-
-    function clearResults() {
-        document.getElementById('commentTree').innerHTML = '';
-        document.getElementById('postHeader').classList.remove('visible');
-        document.getElementById('analyticsPanel').classList.remove('visible');
-        document.getElementById('breadcrumbBar').classList.remove('visible');
-        document.getElementById('appFooter').style.display = 'none';
-    }
-
-    function escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        const div = document.createElement('div');
-        div.textContent = String(text);
-        return div.innerHTML;
-    }
-
-    /* ══════════════════════════════════════════════════
-       Keyboard Shortcuts
-       ══════════════════════════════════════════════════ */
-
-    document.getElementById('urlInput').addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            fetchThread();
-        }
+        csv+=vals.join(',')+'\n';
     });
+    dl(new Blob([csv],{type:'text/csv;charset=utf-8;'}),`reddit_${cachedData.thread_id}.csv`);
+}
+async function exportTXT(){
+    if(!cachedData){showError('No data. Fetch first.');return}
+    try{
+        const r=await fetch('/api/export/txt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cachedData)});
+        if(!r.ok){const d=await r.json();throw new Error(d.error||'Export failed')}
+        const blob=await r.blob();
+        dl(blob,`reddit_${cachedData.thread_id}.txt`);
+    }catch(err){showError('TXT export failed: '+err.message)}
+}
 
-    document.addEventListener('keydown', function (e) {
-        /* Ctrl/Cmd + K → Toggle Search */
-        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-            e.preventDefault();
-            toggleSearch();
-        }
-        /* Escape → Close search */
-        if (e.key === 'Escape') {
-            const searchBar = document.getElementById('searchBar');
-            if (searchBar.classList.contains('visible')) {
-                toggleSearch();
-            }
-        }
-    });
+function flattenTree(comments,result){
+    result=result||[];
+    for(const c of comments){if(c._truncated)continue;const f=Object.assign({},c);delete f.replies;result.push(f);if(c.replies)flattenTree(c.replies,result)}
+    return result;
+}
+function dl(blob,name){
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+    showSuccess(`Exported: ${name}`);
+}
 
-    /* ── Depth slider live update ── */
-    document.getElementById('depthSlider').addEventListener('input', function () {
-        document.getElementById('depthValue').textContent = this.value;
-    });
+/* ══════════════ UI Helpers ══════════════ */
+function showLoading(){document.getElementById('loadingMsg').classList.add('visible')}
+function hideLoading(){document.getElementById('loadingMsg').classList.remove('visible')}
+function showError(m){const el=document.getElementById('errorMsg');el.textContent='❌ '+m;el.classList.add('visible')}
+function hideError(){document.getElementById('errorMsg').classList.remove('visible')}
+function showSuccess(m){const el=document.getElementById('successMsg');el.textContent='✓ '+m;el.classList.add('visible')}
+function hideSuccess(){document.getElementById('successMsg').classList.remove('visible')}
+function clearResults(){
+    document.getElementById('commentTree').innerHTML='';
+    document.getElementById('tableContainer').innerHTML='';
+    document.getElementById('postHeader').classList.remove('visible');
+    document.getElementById('analyticsPanel').classList.remove('visible');
+    document.getElementById('breadcrumbBar').classList.remove('visible');
+    document.getElementById('quickjumpBar').classList.remove('visible');
+    document.getElementById('tabBar').classList.remove('visible');
+    document.getElementById('appFooter').classList.remove('visible');
+}
+function esc(t){if(t===null||t===undefined)return'';const d=document.createElement('div');d.textContent=String(t);return d.innerHTML}
+function escAttr(t){return(t||'').replace(/'/g,"\\'")}
 
-    </script>
+/* ══════════════ Keyboard ══════════════ */
+document.getElementById('urlInput').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();fetchThread()}});
+document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();toggleSearch()}if(e.key==='Escape'){const sb=document.getElementById('searchBar');if(sb.classList.contains('visible'))toggleSearch()}});
+document.getElementById('depthSlider').addEventListener('input',function(){document.getElementById('depthValue').textContent=this.value});
+</script>
 </body>
 </html>

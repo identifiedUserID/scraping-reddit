@@ -1,24 +1,23 @@
 """
 ══════════════════════════════════════════════════════════════
-Flask Backend Server
+Flask Backend Server — Version 2
 ══════════════════════════════════════════════════════════════
-Provides a REST API for the HTML frontend to fetch and process
-Reddit threads. Handles all Reddit API interaction server-side
-to keep credentials secure.
+REST API for the HTML frontend. Now includes sentiment data,
+user analytics, engagement duration, and TXT export endpoint.
 
 Endpoints:
     GET  /              → Serve the HTML frontend
     POST /api/fetch     → Fetch and process a Reddit thread
     GET  /api/health    → Health check
+    POST /api/export/txt → Generate and return TXT export
 ══════════════════════════════════════════════════════════════
 """
 
 import os
 import sys
-import json
 import logging
 import time
-from typing import Optional
+from io import StringIO
 
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
@@ -31,13 +30,10 @@ from scraper import (
     assign_ids,
     extract_post_metadata,
     analyze_thread,
+    export_txt,
     ScraperConfig,
 )
-from utils import CommentIDGenerator, validate_reddit_url
-
-# ══════════════════════════════════════════════════════════════
-# Application Setup
-# ══════════════════════════════════════════════════════════════
+from utils import CommentIDGenerator, validate_reddit_url, format_timestamp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,28 +45,16 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-# ── Global State ──
 _reddit_instance = None
 _app_config = None
 
 
 def get_reddit():
-    """
-    Lazily initialize and cache the Reddit instance.
-
-    Returns:
-        praw.Reddit instance
-
-    Raises:
-        RuntimeError if credentials are missing
-    """
     global _reddit_instance, _app_config
-
     if _reddit_instance is None:
         _app_config = load_config()
         _reddit_instance = create_reddit_instance(_app_config.credentials)
         logger.info("Reddit instance initialized")
-
     return _reddit_instance
 
 
@@ -80,19 +64,18 @@ def get_reddit():
 
 @app.route("/")
 def index():
-    """Serve the HTML frontend."""
     return send_from_directory('.', 'index.html')
 
 
 @app.route("/api/health", methods=["GET"])
 def health_check():
-    """Health check endpoint."""
     try:
         reddit = get_reddit()
         return jsonify({
             "status": "ok",
             "reddit_connected": True,
             "read_only": reddit.read_only,
+            "version": 2,
         })
     except Exception as e:
         return jsonify({
@@ -106,29 +89,10 @@ def health_check():
 def fetch_thread():
     """
     Fetch and process a Reddit thread.
-
-    Request JSON body:
-        {
-            "url": "https://www.reddit.com/r/.../comments/.../...",
-            "depth": 10,           (optional, default 10)
-            "sort": "best",        (optional, default "best")
-            "min_score": null,     (optional)
-            "skip_deleted": false, (optional)
-            "more_limit": 0        (optional, default 0)
-        }
-
-    Response JSON:
-        {
-            "post": { ... },
-            "comments": [ ... ],
-            "analytics": { ... },
-            "thread_id": "A7X9K2",
-            "fetch_time_ms": 1234
-        }
+    Now returns sentiment data, user analytics, and engagement duration.
     """
     start_time = time.time()
 
-    # ── Parse request ──
     data = request.get_json(silent=True)
     if not data:
         return _error_response("Request body must be JSON", 400)
@@ -137,13 +101,11 @@ def fetch_thread():
     if not url:
         return _error_response("'url' field is required", 400)
 
-    # ── Validate URL ──
     try:
         validated_url = validate_reddit_url(url)
     except ValueError as e:
         return _error_response(str(e), 400)
 
-    # ── Build scraper config ──
     try:
         scraper_config = ScraperConfig(
             max_depth=_clamp(data.get("depth", 10), 1, 50),
@@ -157,7 +119,6 @@ def fetch_thread():
     except ValueError as e:
         return _error_response(f"Invalid configuration: {e}", 400)
 
-    # ── Fetch and process ──
     try:
         reddit = get_reddit()
     except (EnvironmentError, ConnectionError) as e:
@@ -176,18 +137,13 @@ def fetch_thread():
         return _error_response(f"Unexpected error: {e}", 500)
 
     try:
-        # Extract metadata
         post_meta = extract_post_metadata(post)
-
-        # Build tree
         tree = build_comment_tree(post.comments, config=scraper_config)
 
-        # Assign IDs
         id_gen = CommentIDGenerator()
         assign_ids(tree, id_gen)
 
-        # Analytics
-        analytics = analyze_thread(tree)
+        analytics = analyze_thread(tree, post_meta=post_meta)
 
         elapsed_ms = int((time.time() - start_time) * 1000)
 
@@ -204,18 +160,56 @@ def fetch_thread():
         return _error_response(f"Error processing comments: {e}", 500)
 
 
+@app.route("/api/export/txt", methods=["POST"])
+def export_txt_endpoint():
+    """
+    Generate a TXT export from previously fetched data.
+    Accepts the same data structure returned by /api/fetch.
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return _error_response("Request body must be JSON", 400)
+
+    post_meta = data.get("post")
+    tree = data.get("comments")
+    analytics = data.get("analytics")
+
+    if not post_meta or not tree or not analytics:
+        return _error_response("Missing 'post', 'comments', or 'analytics' in request body", 400)
+
+    try:
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as tmp:
+            filepath = tmp.name
+
+        export_txt(post_meta, tree, analytics, filepath)
+
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        os.unlink(filepath)
+
+        return Response(
+            content,
+            mimetype='text/plain',
+            headers={'Content-Disposition': f'attachment; filename=reddit_thread_{data.get("thread_id", "export")}.txt'}
+        )
+
+    except Exception as e:
+        logger.exception("Error generating TXT export")
+        return _error_response(f"Export error: {e}", 500)
+
+
 # ══════════════════════════════════════════════════════════════
 # Helpers
 # ══════════════════════════════════════════════════════════════
 
-def _error_response(message: str, status_code: int) -> tuple[Response, int]:
-    """Create a standardized error response."""
+def _error_response(message: str, status_code: int) -> tuple:
     logger.warning(f"API error ({status_code}): {message}")
     return jsonify({"error": message}), status_code
 
 
 def _clamp(value, min_val, max_val):
-    """Clamp a numeric value between min and max."""
     try:
         value = int(value)
     except (TypeError, ValueError):
@@ -230,16 +224,12 @@ def _clamp(value, min_val, max_val):
 if __name__ == "__main__":
     try:
         config = load_config()
-
-        # Validate credentials before starting server
         config.credentials.validate()
         logger.info("Credentials validated")
-
-        # Pre-initialize Reddit connection
         get_reddit()
 
         print(f"\n{'='*50}")
-        print(f"  Reddit Discussion Explorer — Server")
+        print(f"  Reddit Discussion Explorer v2 — Server")
         print(f"{'='*50}")
         print(f"  URL:  http://localhost:{config.server.port}")
         print(f"  API:  http://localhost:{config.server.port}/api/fetch")

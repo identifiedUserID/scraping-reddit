@@ -1,15 +1,13 @@
 """
 ══════════════════════════════════════════════════════════════
-Command-Line Interface
+Command-Line Interface — Version 2
 ══════════════════════════════════════════════════════════════
-Provides a rich terminal-based interface for the Reddit scraper.
-Handles argument parsing, terminal rendering of comment trees,
-and interactive output.
+Terminal-based interface with sentiment display, user analytics
+rendering, engagement duration, and TXT export support.
 ══════════════════════════════════════════════════════════════
 """
 
 import sys
-import os
 import argparse
 import logging
 from typing import Optional
@@ -42,121 +40,47 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════════════════════
 
 def parse_args(argv: Optional[list] = None) -> argparse.Namespace:
-    """
-    Parse command-line arguments.
-
-    Args:
-        argv: Argument list (defaults to sys.argv if None)
-
-    Returns:
-        Parsed argument namespace
-    """
     parser = argparse.ArgumentParser(
         prog="reddit-explorer",
-        description="Reddit Discussion Explorer — Fetch, analyze, and display Reddit comment threads",
+        description="Reddit Discussion Explorer v2 — Fetch, analyze, and display Reddit comment threads",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   %(prog)s --url https://www.reddit.com/r/AskReddit/comments/abc123/title/
   %(prog)s -u https://redd.it/abc123 --depth 5 --sort top
   %(prog)s -u <url> --format json --output thread.json
+  %(prog)s -u <url> --format txt --output thread.txt
   %(prog)s -u <url> --min-score 10 --skip-deleted
   %(prog)s --about
         """,
     )
 
-    # ── Core Arguments ──
-    parser.add_argument(
-        "--url", "-u",
-        type=str,
-        default=None,
-        help="Reddit post URL to scrape",
-    )
-    parser.add_argument(
-        "--about",
-        action="store_true",
-        help="Show detailed information about this tool",
-    )
+    parser.add_argument("--url", "-u", type=str, default=None, help="Reddit post URL to scrape")
+    parser.add_argument("--about", action="store_true", help="Show detailed information about this tool")
 
-    # ── Scraping Options ──
     scrape_group = parser.add_argument_group("Scraping Options")
-    scrape_group.add_argument(
-        "--depth", "-d",
-        type=int,
-        default=10,
-        help="Maximum reply depth to fetch (default: 10, max: 50)",
-    )
-    scrape_group.add_argument(
-        "--sort", "-s",
-        choices=["best", "top", "new", "controversial", "old", "qa"],
-        default="best",
-        help="Comment sort order (default: best)",
-    )
-    scrape_group.add_argument(
-        "--more-comments", "-m",
-        type=int,
-        default=0,
-        help="Number of 'MoreComments' to expand (0=none, -1=all, default: 0)",
-    )
+    scrape_group.add_argument("--depth", "-d", type=int, default=10, help="Maximum reply depth (default: 10, max: 50)")
+    scrape_group.add_argument("--sort", "-s", choices=["best", "top", "new", "controversial", "old", "qa"], default="best")
+    scrape_group.add_argument("--more-comments", "-m", type=int, default=0, help="MoreComments to expand (0=none, -1=all)")
 
-    # ── Filtering Options ──
     filter_group = parser.add_argument_group("Filtering Options")
-    filter_group.add_argument(
-        "--min-score",
-        type=int,
-        default=None,
-        help="Only show comments with at least this score",
-    )
-    filter_group.add_argument(
-        "--skip-deleted",
-        action="store_true",
-        help="Skip comments by deleted users",
-    )
-    filter_group.add_argument(
-        "--max-body-length",
-        type=int,
-        default=None,
-        help="Truncate comment bodies to this many characters",
-    )
+    filter_group.add_argument("--min-score", type=int, default=None)
+    filter_group.add_argument("--skip-deleted", action="store_true")
+    filter_group.add_argument("--max-body-length", type=int, default=None)
 
-    # ── Output Options ──
     output_group = parser.add_argument_group("Output Options")
-    output_group.add_argument(
-        "--format", "-f",
-        choices=["tree", "indent", "json", "csv", "txt"],
-        default="tree",
-        help="Output format (default: tree)",
-    )
-    output_group.add_argument(
-        "--output", "-o",
-        type=str,
-        default=None,
-        help="Output file path (default: stdout for tree/indent, auto-named for json/csv/txt)",
-    )
-    output_group.add_argument(
-        "--no-body",
-        action="store_true",
-        help="Hide comment bodies (show metadata only)",
-    )
-    output_group.add_argument(
-        "--no-analytics",
-        action="store_true",
-        help="Hide thread analytics summary",
-    )
+    output_group.add_argument("--format", "-f", choices=["tree", "indent", "json", "csv", "txt"], default="tree")
+    output_group.add_argument("--output", "-o", type=str, default=None)
+    output_group.add_argument("--no-body", action="store_true")
+    output_group.add_argument("--no-analytics", action="store_true")
+    output_group.add_argument("--no-sentiment", action="store_true", help="Hide sentiment scores in tree output")
 
-    # ── Logging ──
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose/debug logging",
-    )
+    parser.add_argument("--verbose", "-v", action="store_true")
 
     args = parser.parse_args(argv)
 
-    # Validation
     if not args.about and not args.url:
         parser.error("--url is required (or use --about for info)")
-
     if args.depth < 1 or args.depth > 50:
         parser.error("--depth must be between 1 and 50")
 
@@ -164,102 +88,50 @@ Examples:
 
 
 # ══════════════════════════════════════════════════════════════
-# Section 2: About / Help
+# Section 2: About
 # ══════════════════════════════════════════════════════════════
 
 def print_about():
-    """Display detailed information about the tool."""
     print()
     print(bold("═" * 65))
-    print(bold("  Reddit Discussion Explorer — About"))
+    print(bold("  Reddit Discussion Explorer v2 — About"))
     print(bold("═" * 65))
     print("""
-  This tool fetches comments from Reddit posts and displays them
-  in a structured, hierarchical format with unique IDs, filtering,
-  analytics, and export capabilities.
+  Version 2 adds:
+  • Keyword-based sentiment analysis with negation handling
+  • Per-user analytics (word counts, vocabulary richness, top words)
+  • Engagement duration calculation
+  • TXT export in human-readable format
+  • Improved thread analytics with sentiment distribution
 
-  FEATURES
-  ────────
-  • Hierarchical comment tree with proper numbering (1, 1.1, 1.1.1)
-  • Unique collision-free comment IDs (e.g., A7X9K2-1.2.3)
-  • Multiple output formats: tree, indented, JSON, CSV, TXT
-  • Comment filtering by score, deleted status
-  • Thread analytics (avg score, max depth, unique authors, etc.)
-  • Tree-style visual rendering with expand indicators
-  • Secure credential management via .env files
-
-  NUMBERING SYSTEM
-  ────────────────
-  • Top-level comments: 1, 2, 3, ...
-  • Direct replies:     1.1, 1.2, 1.3, ...
-  • Nested replies:     1.1.1, 1.1.2, 1.2.1, ...
-
-  Each comment also gets a unique thread-scoped ID:
-    {ThreadBase}-{Hierarchy}  →  A7X9K2-1.2.3
-
-  SETUP
-  ─────
-  1. Copy .env.example to .env
-  2. Add your Reddit API credentials
-  3. Install dependencies: pip install -r requirements.txt
-  4. Run: python cli.py --url <reddit_post_url>
-
-  Get API credentials: https://www.reddit.com/prefs/apps/
+  See README.md for full documentation.
 """)
     print(bold("═" * 65))
 
 
 # ══════════════════════════════════════════════════════════════
-# Section 3: Terminal Tree Rendering
+# Section 3: Tree Rendering (with sentiment)
 # ══════════════════════════════════════════════════════════════
 
-def render_tree(tree: list[dict], show_body: bool = True) -> None:
-    """
-    Render a comment tree with box-drawing characters.
-
-    Produces output like:
-        Comment 1 by user123 [OP] (45 pts)
-        │  This is the comment body text...
-        │
-        ├── Reply 1.1 by user456 (12 pts)
-        │   │  Reply body text...
-        │   │
-        │   ├── Reply 1.1.1 by user789 (3 pts)
-        │   │   │  Nested reply body...
-        │   │
-        │   └── Reply 1.1.2 by user101 (1 pts)
-        │       │  Another nested reply...
-        │
-        └── Reply 1.2 by user202 (8 pts)
-            │  Second reply body...
-
-    Args:
-        tree: List of comment dictionaries
-        show_body: Whether to display comment body text
-    """
-    _render_tree_recursive(tree, prefix="", show_body=show_body)
+def render_tree(tree: list[dict], show_body: bool = True, show_sentiment: bool = True) -> None:
+    _render_tree_recursive(tree, prefix="", show_body=show_body, show_sentiment=show_sentiment)
 
 
 def _render_tree_recursive(
     comments: list[dict],
     prefix: str = "",
     show_body: bool = True,
+    show_sentiment: bool = True,
 ) -> None:
-    """Internal recursive tree renderer."""
     for i, comment in enumerate(comments):
         is_last = (i == len(comments) - 1)
         connector = "└── " if is_last else "├── "
         extension = "    " if is_last else "│   "
 
-        # Handle truncated branches
         if "_truncated" in comment:
-            print(
-                f"{prefix}{connector}"
-                f"{dim(f'[... truncated at depth {comment[\"depth\"]} ...]')}"
-            )
+            print(f"{prefix}{connector}{dim(f'[... truncated at depth {comment[\"depth\"]} ...]')}")
             continue
 
-        # Build the header line
         depth = comment["depth"]
         hierarchy = comment["hierarchy"]
         author = comment["author"]
@@ -269,7 +141,6 @@ def _render_tree_recursive(
         label = "Comment" if depth == 0 else "Reply"
         op_tag = colored(" [OP]", "cyan") if is_op else ""
 
-        # Color-code the score
         if score >= 50:
             score_str = colored(f"({score} pts)", "green")
         elif score < 0:
@@ -277,42 +148,37 @@ def _render_tree_recursive(
         else:
             score_str = f"({score} pts)"
 
-        # Print the comment header
-        header = f"{label} {hierarchy} by {author}{op_tag} {score_str}"
+        # Sentiment indicator
+        sent_str = ""
+        if show_sentiment:
+            sentiment = comment.get("sentiment", {})
+            sent_label = sentiment.get("label", "neutral")
+            sent_score = sentiment.get("score", 0)
+            if sent_label == "positive":
+                sent_str = colored(f" [+{sent_score:.2f}]", "green")
+            elif sent_label == "negative":
+                sent_str = colored(f" [{sent_score:.2f}]", "red")
+            else:
+                sent_str = dim(f" [~{sent_score:.2f}]")
+
+        header = f"{label} {hierarchy} by {author}{op_tag} {score_str}{sent_str}"
         print(f"{prefix}{connector}{bold(header)}")
 
-        # Print the body
         if show_body and comment.get("body"):
             body_prefix = f"{prefix}{extension}│  "
-            body_lines = comment["body"].split('\n')
-            for line in body_lines:
+            for line in comment["body"].split('\n'):
                 print(f"{body_prefix}{line}")
             print(f"{prefix}{extension}│")
 
-        # Print the ID in dim text
         if comment.get("id"):
             print(f"{prefix}{extension}{dim(f'ID: {comment[\"id\"]}')}")
 
-        # Recursively render replies
         replies = comment.get("replies", [])
         if replies:
-            _render_tree_recursive(
-                replies,
-                prefix=f"{prefix}{extension}",
-                show_body=show_body,
-            )
+            _render_tree_recursive(replies, prefix=f"{prefix}{extension}", show_body=show_body, show_sentiment=show_sentiment)
 
 
-def render_indented(tree: list[dict], show_body: bool = True) -> None:
-    """
-    Render a comment tree with simple indentation.
-
-    A simpler alternative to the box-drawing tree renderer.
-
-    Args:
-        tree: List of comment dictionaries
-        show_body: Whether to display comment body text
-    """
+def render_indented(tree: list[dict], show_body: bool = True, show_sentiment: bool = True) -> None:
     for comment in tree:
         if "_truncated" in comment:
             indent = "  " * comment["depth"]
@@ -323,9 +189,16 @@ def render_indented(tree: list[dict], show_body: bool = True) -> None:
         label = "Comment" if comment["depth"] == 0 else "Reply"
         op_tag = colored(" [OP]", "cyan") if comment.get("is_op") else ""
 
+        sent_str = ""
+        if show_sentiment:
+            sentiment = comment.get("sentiment", {})
+            sent_label = sentiment.get("label", "neutral")
+            sent_score = sentiment.get("score", 0)
+            sent_str = f" [{sent_label}: {sent_score:.2f}]"
+
         print(
             f"{indent}{bold(f'{label} {comment[\"hierarchy\"]}')} "
-            f"by {comment['author']}{op_tag} ({comment['score']}↑)"
+            f"by {comment['author']}{op_tag} ({comment['score']}↑){sent_str}"
         )
 
         if show_body and comment.get("body"):
@@ -333,10 +206,7 @@ def render_indented(tree: list[dict], show_body: bool = True) -> None:
                 print(f"{indent}  {line}")
             print()
 
-        if comment.get("id"):
-            print(f"{indent}  {dim(f'ID: {comment[\"id\"]}')}")
-
-        render_indented(comment.get("replies", []), show_body=show_body)
+        render_indented(comment.get("replies", []), show_body=show_body, show_sentiment=show_sentiment)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -344,12 +214,6 @@ def render_indented(tree: list[dict], show_body: bool = True) -> None:
 # ══════════════════════════════════════════════════════════════
 
 def render_analytics(analytics: dict) -> None:
-    """
-    Render thread analytics to the terminal.
-
-    Args:
-        analytics: Dictionary of thread statistics
-    """
     print()
     print(bold("═" * 50))
     print(bold("  Thread Analytics"))
@@ -377,6 +241,18 @@ def render_analytics(analytics: dict) -> None:
             value_str = colored(value_str, color)
         print(f"  {label:<24} {value_str}")
 
+    # Engagement
+    engagement = analytics.get("engagement_duration", {})
+    print(f"  {'Engagement Duration':<24} {engagement.get('text', 'N/A')}")
+
+    # Sentiment
+    print()
+    print(bold("  Sentiment Distribution"))
+    print(f"  {'Overall':<24} {analytics.get('sentiment_overall_label', 'neutral')} ({analytics.get('sentiment_avg', 0)})")
+    print(f"  {'Positive':<24} {analytics.get('sentiment_positive_count', 0)}")
+    print(f"  {'Neutral':<24} {analytics.get('sentiment_neutral_count', 0)}")
+    print(f"  {'Negative':<24} {analytics.get('sentiment_negative_count', 0)}")
+
     print(bold("═" * 50))
 
 
@@ -385,18 +261,8 @@ def render_analytics(analytics: dict) -> None:
 # ══════════════════════════════════════════════════════════════
 
 def main(argv: Optional[list] = None) -> int:
-    """
-    Main entry point for the CLI application.
-
-    Args:
-        argv: Optional argument list (for testing). Uses sys.argv if None.
-
-    Returns:
-        Exit code (0 = success, 1 = error)
-    """
     args = parse_args(argv)
 
-    # ── Configure logging ──
     log_level = logging.DEBUG if args.verbose else logging.WARNING
     logging.basicConfig(
         level=log_level,
@@ -404,19 +270,16 @@ def main(argv: Optional[list] = None) -> int:
         datefmt="%H:%M:%S",
     )
 
-    # ── Handle --about ──
     if args.about:
         print_about()
         return 0
 
-    # ── Load configuration ──
     try:
         app_config = load_config()
     except Exception as e:
         print(colored(f"\n✗ Configuration error: {e}", "red"))
         return 1
 
-    # ── Build scraper config from CLI args ──
     scraper_config = ScraperConfig(
         max_depth=args.depth,
         min_score=args.min_score,
@@ -432,7 +295,6 @@ def main(argv: Optional[list] = None) -> int:
         print(colored(f"\n✗ Invalid configuration: {e}", "red"))
         return 1
 
-    # ── Connect to Reddit ──
     try:
         print(dim("\n⏳ Connecting to Reddit API..."))
         reddit = create_reddit_instance(app_config.credentials)
@@ -443,7 +305,6 @@ def main(argv: Optional[list] = None) -> int:
         print(colored(f"\n✗ Connection failed: {e}", "red"))
         return 1
 
-    # ── Fetch post ──
     try:
         print(dim("⏳ Fetching post and comments..."))
         post = fetch_post(reddit, args.url, scraper_config)
@@ -457,22 +318,18 @@ def main(argv: Optional[list] = None) -> int:
         print(colored(f"\n✗ {e}", "red"))
         return 1
 
-    # ── Extract post metadata ──
     post_meta = extract_post_metadata(post)
 
-    # ── Build comment tree ──
-    print(dim("⏳ Building comment tree..."))
+    print(dim("⏳ Building comment tree & analyzing sentiment..."))
     tree = build_comment_tree(post.comments, config=scraper_config)
 
-    # ── Assign IDs ──
     id_gen = CommentIDGenerator(base_length=scraper_config.id_base_length)
     assign_ids(tree, id_gen)
 
-    # ── Compute analytics ──
-    analytics = analyze_thread(tree)
+    analytics = analyze_thread(tree, post_meta=post_meta)
 
-    # ── Output ──
     show_body = not args.no_body
+    show_sentiment = not getattr(args, 'no_sentiment', False)
 
     if args.format == "json":
         filepath = args.output or f"export_{id_gen.thread_id}.json"
@@ -491,13 +348,13 @@ def main(argv: Optional[list] = None) -> int:
 
     elif args.format == "indent":
         _print_post_header(post_meta, id_gen)
-        render_indented(tree, show_body=show_body)
+        render_indented(tree, show_body=show_body, show_sentiment=show_sentiment)
         if not args.no_analytics:
             render_analytics(analytics)
 
-    else:  # tree (default)
+    else:
         _print_post_header(post_meta, id_gen)
-        render_tree(tree, show_body=show_body)
+        render_tree(tree, show_body=show_body, show_sentiment=show_sentiment)
         if not args.no_analytics:
             render_analytics(analytics)
 
@@ -505,7 +362,6 @@ def main(argv: Optional[list] = None) -> int:
 
 
 def _print_post_header(post_meta: dict, id_gen: CommentIDGenerator) -> None:
-    """Print the post header section to the terminal."""
     print()
     print(bold("═" * 65))
     print(bold(f"  {post_meta['title']}"))
@@ -520,6 +376,12 @@ def _print_post_header(post_meta: dict, id_gen: CommentIDGenerator) -> None:
 
     if post_meta.get("flair"):
         print(f"  Flair: {post_meta['flair']}")
+
+    # Post sentiment
+    post_sent = post_meta.get("sentiment", {})
+    sent_label = post_sent.get("label", "neutral")
+    sent_score = post_sent.get("score", 0)
+    print(f"  Post Sentiment: {sent_label} ({sent_score})")
 
     flags = []
     if post_meta.get("is_nsfw"):
@@ -542,10 +404,6 @@ def _print_post_header(post_meta: dict, id_gen: CommentIDGenerator) -> None:
 
     print()
 
-
-# ══════════════════════════════════════════════════════════════
-# Guard: Script Entry Point
-# ══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     sys.exit(main())
