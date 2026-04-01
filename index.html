@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit Discussion Explorer</title>
+    <style>
+        /* ══════════════════════════════════════════════════
+           CSS Variables — Theme System
+           ══════════════════════════════════════════════════ */
+        :root {
+            --bg-primary: #0f0f1a;
+            --bg-secondary: #1a1a2e;
+            --bg-surface: #16213e;
+            --bg-elevated: #1c2a4a;
+            --bg-hover: #223358;
+            --accent: #e94560;
+            --accent-hover: #ff6b81;
+            --accent-dim: #a83248;
+            --text-primary: #e8e8f0;
+            --text-secondary: #a0a0b8;
+            --text-muted: #666680;
+            --text-link: #64b5f6;
+            --border: #2a2a40;
+            --border-light: #3a3a55;
+            --score-positive: #4caf50;
+            --score-negative: #f44336;
+            --score-neutral: #a0a0b8;
+            --op-color: #00bcd4;
+            --op-bg: rgba(0, 188, 212, 0.12);
+            --gilded-color: #ffd700;
+            --deleted-color: #ff6b6b;
+            --radius: 8px;
+            --radius-lg: 12px;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            --transition: 0.2s ease;
+        }
+
+        /* ── Light Mode ── */
+        [data-theme="light"] {
+            --bg-primary: #f5f5f8;
+            --bg-secondary: #ffffff;
+            --bg-surface: #f0f0f5;
+            --bg-elevated: #e8e8f0;
+            --bg-hover: #e0e0ea;
+            --accent: #d63851;
+            --accent-hover: #e94560;
+            --accent-dim: #b02e45;
+            --text-primary: #1a1a2e;
+            --text-secondary: #555570;
+            --text-muted: #888898;
+            --text-link: #1976d2;
+            --border: #d0d0dd;
+            --border-light: #e0e0ea;
+            --op-bg: rgba(0, 188, 212, 0.08);
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        /* ══════════════════════════════════════════════════
+           Base Styles
+           ══════════════════════════════════════════════════ */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                         Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ══════════════════════════════════════════════════
+           Layout
+           ══════════════════════════════════════════════════ */
+        .app-container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 20px 16px;
+        }
+
+        /* ── Header ── */
+        .app-header {
+            text-align: center;
+            padding: 28px 0 24px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        .app-header h1 {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 4px;
+            letter-spacing: -0.02em;
+        }
+
+        .app-header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 6px 14px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-hover);
+            border-color: var(--border-light);
+        }
+
+        /* ── Input Section ── */
+        .input-section {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: var(--transition);
+            outline: none;
+        }
+
+        .url-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.2);
+        }
+
+        .url-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-surface);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            padding: 6px 14px;
+            font-size: 0.82rem;
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        /* ── Controls ── */
+        .controls-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .control-group label {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            font-weight: 500;
+        }
+
+        .control-input {
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .control-input:focus {
+            border-color: var(--accent);
+        }
+
+        select.control-input {
+            padding: 4px 6px;
+            cursor: pointer;
+        }
+
+        input[type="range"] {
+            width: 100px;
+            accent-color: var(--accent);
+        }
+
+        .controls-actions {
+            display: flex;
+            gap: 6px;
+            margin-left: auto;
+        }
+
+        /* ── Status Messages ── */
+        .status-message {
+            padding: 14px 18px;
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .status-message.visible {
+            display: block;
+        }
+
+        .status-loading {
+            background: var(--bg-surface);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .status-error {
+            background: rgba(244, 67, 54, 0.1);
+            color: #ff6b6b;
+            border: 1px solid rgba(244, 67, 54, 0.25);
+        }
+
+        .status-success {
+            background: rgba(76, 175, 80, 0.1);
+            color: #81c784;
+            border: 1px solid rgba(76, 175, 80, 0.25);
+        }
+
+        /* ── Post Header ── */
+        .post-header {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--accent);
+            border-radius: var(--radius-lg);
+            padding: 22px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .post-header.visible {
+            display: block;
+        }
+
+        .post-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+
+        .post-meta {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+
+        .post-meta .subreddit { color: var(--text-link); }
+        .post-meta .author { color: var(--accent); }
+
+        .post-flags {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+
+        .flag-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .flag-nsfw { background: rgba(244,67,54,0.2); color: #ff6b6b; }
+        .flag-locked { background: rgba(255,193,7,0.2); color: #ffd54f; }
+        .flag-archived { background: rgba(160,160,184,0.15); color: var(--text-muted); }
+        .flag-flair { background: rgba(100,181,246,0.15); color: var(--text-link); }
+
+        .post-body {
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+            white-space: pre-wrap;
+            line-height: 1.7;
+            color: var(--text-secondary);
+        }
+
+        /* ── Analytics ── */
+        .analytics-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 18px 22px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .analytics-panel.visible {
+            display: block;
+        }
+
+        .analytics-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 10px 8px;
+            background: var(--bg-surface);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-top: 2px;
+        }
+
+        /* ── Breadcrumbs ── */
+        .breadcrumb-bar {
+            padding: 8px 14px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+            display: none;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .breadcrumb-bar.visible {
+            display: block;
+        }
+
+        .breadcrumb-link {
+            color: var(--text-link);
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .breadcrumb-link:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb-sep {
+            margin: 0 4px;
+            color: var(--text-muted);
+        }
+
+        /* ── Comment Tree ── */
+        .comment-tree {
+            margin-bottom: 40px;
+        }
+
+        .comment-node {
+            margin-bottom: 2px;
+        }
+
+        .comment-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px 16px;
+            margin-bottom: 4px;
+            transition: var(--transition);
+            cursor: default;
+        }
+
+        .comment-card:hover {
+            border-color: var(--border-light);
+            background: var(--bg-elevated);
+        }
+
+        .comment-card.is-op {
+            background: var(--op-bg);
+            border-color: rgba(0, 188, 212, 0.25);
+        }
+
+        .comment-card.highlight {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent-dim);
+        }
+
+        .comment-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+            font-size: 0.82rem;
+        }
+
+        .comment-hierarchy {
+            color: var(--text-muted);
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.78rem;
+        }
+
+        .comment-author {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .comment-author.is-deleted {
+            color: var(--deleted-color);
+            font-style: italic;
+        }
+
+        .op-badge {
+            background: var(--op-color);
+            color: #000;
+            padding: 0 6px;
+            border-radius: 3px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .gilded-badge {
+            color: var(--gilded-color);
+            font-size: 0.78rem;
+        }
+
+        .comment-score {
+            font-size: 0.82rem;
+        }
+
+        .comment-score.positive { color: var(--score-positive); }
+        .comment-score.negative { color: var(--score-negative); }
+        .comment-score.neutral { color: var(--score-neutral); }
+
+        .comment-time {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .comment-id {
+            color: var(--text-muted);
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.72rem;
+            opacity: 0.6;
+        }
+
+        .comment-permalink {
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            text-decoration: none;
+        }
+
+        .comment-permalink:hover {
+            color: var(--text-link);
+            text-decoration: underline;
+        }
+
+        .comment-body {
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            font-size: 0.92rem;
+        }
+
+        /* ── Reply Container ── */
+        .replies-container {
+            margin-left: 22px;
+            padding-left: 14px;
+            border-left: 2px solid var(--border);
+            transition: var(--transition);
+        }
+
+        .replies-container:hover {
+            border-left-color: var(--border-light);
+        }
+
+        .replies-container.collapsed {
+            display: none;
+        }
+
+        /* ── Toggle Button ── */
+        .toggle-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.78rem;
+            padding: 2px 0;
+            margin-top: 6px;
+            transition: var(--transition);
+        }
+
+        .toggle-btn:hover {
+            color: var(--accent);
+        }
+
+        /* ── Truncation Notice ── */
+        .truncated-notice {
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            font-style: italic;
+            padding: 8px 14px;
+            background: var(--bg-surface);
+            border-radius: var(--radius);
+            border: 1px dashed var(--border);
+        }
+
+        /* ── Search Bar ── */
+        .search-bar {
+            position: relative;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .search-bar.visible {
+            display: block;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 14px 10px 36px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .search-count {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .comment-card.search-match {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(233, 69, 96, 0.3);
+        }
+
+        /* ── Footer ── */
+        .app-footer {
+            text-align: center;
+            padding: 20px 0;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        /* ══════════════════════════════════════════════════
+           Responsive
+           ══════════════════════════════════════════════════ */
+        @media (max-width: 600px) {
+            .app-header h1 { font-size: 1.3rem; }
+            .input-section { flex-direction: column; }
+            .controls-bar { flex-direction: column; align-items: stretch; }
+            .controls-actions { margin-left: 0; justify-content: center; }
+            .replies-container { margin-left: 10px; padding-left: 10px; }
+            .theme-toggle { position: static; margin: 10px auto; display: block; }
+            .analytics-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        /* ── Spinner ── */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- ── Theme Toggle ── -->
+        <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+            🌙 Dark
+        </button>
+
+        <!-- ── Header ── -->
+        <header class="app-header">
+            <h1>🔍 Reddit Discussion Explorer</h1>
+            <p>Analyze Reddit threads with hierarchical comment trees</p>
+        </header>
+
+        <!-- ── Input ── -->
+        <div class="input-section">
+            <input
+                type="text"
+                class="url-input"
+                id="urlInput"
+                placeholder="Paste a Reddit post URL..."
+                autofocus
+            >
+            <button class="btn btn-primary" id="fetchBtn" onclick="fetchThread()">
+                Fetch
+            </button>
+        </div>
+
+        <!-- ── Controls ── -->
+        <div class="controls-bar">
+            <div class="control-group">
+                <label for="depthSlider">Depth:</label>
+                <input type="range" id="depthSlider" min="1" max="30" value="10">
+                <span id="depthValue" style="color:var(--text-primary);font-size:0.85rem;min-width:20px;">10</span>
+            </div>
+            <div class="control-group">
+                <label for="minScoreInput">Min Score:</label>
+                <input type="number" class="control-input" id="minScoreInput" placeholder="any" style="width:65px;">
+            </div>
+            <div class="control-group">
+                <label for="sortSelect">Sort:</label>
+                <select class="control-input" id="sortSelect">
+                    <option value="best">Best</option>
+                    <option value="top">Top</option>
+                    <option value="new">New</option>
+                    <option value="controversial">Controversial</option>
+                    <option value="old">Old</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="skipDeletedCheck"> Skip deleted
+                </label>
+            </div>
+            <div class="controls-actions">
+                <button class="btn btn-secondary" onclick="toggleSearch()">🔎 Search</button>
+                <button class="btn btn-secondary" onclick="expandAll()">+ Expand All</button>
+                <button class="btn btn-secondary" onclick="collapseAll()">− Collapse All</button>
+                <button class="btn btn-secondary" onclick="exportJSON()">📁 JSON</button>
+                <button class="btn btn-secondary" onclick="exportCSV()">📄 CSV</button>
+            </div>
+        </div>
+
+        <!-- ── Search ── -->
+        <div class="search-bar" id="searchBar">
+            <span class="search-icon">🔎</span>
+            <input
+                type="text"
+                class="search-input"
+                id="searchInput"
+                placeholder="Search comments..."
+                oninput="searchComments(this.value)"
+            >
+            <span class="search-count" id="searchCount"></span>
+        </div>
+
+        <!-- ── Status Messages ── -->
+        <div class="status-message status-loading" id="loadingMsg">
+            <span class="spinner"></span> Fetching comments from Reddit...
+        </div>
+        <div class="status-message status-error" id="errorMsg"></div>
+        <div class="status-message status-success" id="successMsg"></div>
+
+        <!-- ── Post Header ── -->
+        <div class="post-header" id="postHeader"></div>
+
+        <!-- ── Breadcrumb ── -->
+        <div class="breadcrumb-bar" id="breadcrumbBar"></div>
+
+        <!-- ── Analytics ── -->
+        <div class="analytics-panel" id="analyticsPanel"></div>
+
+        <!-- ── Comment Tree ── -->
+        <div class="comment-tree" id="commentTree"></div>
+
+        <!-- ── Footer ── -->
+        <div class="app-footer" id="appFooter" style="display:none;">
+            Reddit Discussion Explorer • Data fetched from Reddit API via PRAW
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         JavaScript — Application Logic
+         ══════════════════════════════════════════════════════════ -->
+    <script>
+    /* ── Global State ── */
+    let cachedData = null;
+    let currentTheme = localStorage.getItem('theme') || 'dark';
+
+    /* Initialize theme */
+    (function initTheme() {
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        updateThemeButton();
+    })();
+
+    /* ══════════════════════════════════════════════════
+       Theme
+       ══════════════════════════════════════════════════ */
+
+    function toggleTheme() {
+        currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        localStorage.setItem('theme', currentTheme);
+        updateThemeButton();
+    }
+
+    function updateThemeButton() {
+        const btn = document.getElementById('themeToggle');
+        btn.textContent = currentTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+    }
+
+    /* ══════════════════════════════════════════════════
+       Fetch Thread
+       ══════════════════════════════════════════════════ */
+
+    async function fetchThread() {
+        const url = document.getElementById('urlInput').value.trim();
+        if (!url) {
+            showError('Please enter a Reddit post URL.');
+            return;
+        }
+
+        /* Gather options */
+        const depth = parseInt(document.getElementById('depthSlider').value);
+        const minScoreRaw = document.getElementById('minScoreInput').value.trim();
+        const minScore = minScoreRaw !== '' ? parseInt(minScoreRaw) : null;
+        const sort = document.getElementById('sortSelect').value;
+        const skipDeleted = document.getElementById('skipDeletedCheck').checked;
+
+        /* UI: loading state */
+        const fetchBtn = document.getElementById('fetchBtn');
+        fetchBtn.disabled = true;
+        showLoading();
+        hideError();
+        hideSuccess();
+        clearResults();
+
+        try {
+            const response = await fetch('/api/fetch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    url,
+                    depth,
+                    min_score: minScore,
+                    sort,
+                    skip_deleted: skipDeleted,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || `Server error (${response.status})`);
+            }
+
+            cachedData = data;
+
+            renderPost(data.post);
+            renderAnalytics(data.analytics);
+            renderCommentTree(data.comments, document.getElementById('commentTree'));
+            showSuccess(
+                `Fetched ${data.analytics.total_comments} comments in ${data.fetch_time_ms}ms ` +
+                `(Thread ID: ${data.thread_id})`
+            );
+            document.getElementById('appFooter').style.display = 'block';
+
+        } catch (err) {
+            showError(err.message);
+        } finally {
+            fetchBtn.disabled = false;
+            hideLoading();
+        }
+    }
+
+    /* ══════════════════════════════════════════════════
+       Render Post Header
+       ══════════════════════════════════════════════════ */
+
+    function renderPost(post) {
+        const el = document.getElementById('postHeader');
+
+        let flagsHtml = '';
+        if (post.is_nsfw) flagsHtml += '<span class="flag-badge flag-nsfw">NSFW</span>';
+        if (post.is_locked) flagsHtml += '<span class="flag-badge flag-locked">Locked</span>';
+        if (post.is_archived) flagsHtml += '<span class="flag-badge flag-archived">Archived</span>';
+        if (post.flair) flagsHtml += `<span class="flag-badge flag-flair">${escapeHtml(post.flair)}</span>`;
+
+        el.innerHTML = `
+            <div class="post-title">${escapeHtml(post.title)}</div>
+            <div class="post-meta">
+                <span class="subreddit">r/${escapeHtml(post.subreddit)}</span> •
+                <span class="author">u/${escapeHtml(post.author)}</span> •
+                ${post.score} points •
+                ${post.num_comments} comments
+                (${post.num_top_level} top-level) •
+                ${escapeHtml(post.created_relative)}
+                ${post.upvote_ratio ? ` • ${Math.round(post.upvote_ratio * 100)}% upvoted` : ''}
+            </div>
+            ${flagsHtml ? `<div class="post-flags">${flagsHtml}</div>` : ''}
+            ${post.body ? `<div class="post-body">${escapeHtml(post.body)}</div>` : ''}
+        `;
+        el.classList.add('visible');
+    }
+
+    /* ══════════════════════════════════════════════════
+       Render Analytics
+       ══════════════════════════════════════════════════ */
+
+    function renderAnalytics(stats) {
+        const el = document.getElementById('analyticsPanel');
+
+        const cards = [
+            { value: stats.total_comments, label: 'Comments' },
+            { value: stats.unique_author_count, label: 'Authors' },
+            { value: stats.avg_score, label: 'Avg Score' },
+            { value: stats.max_depth_reached, label: 'Max Depth' },
+            { value: stats.op_replies, label: 'OP Replies' },
+            { value: stats.gilded_count, label: 'Gilded' },
+            { value: stats.deleted_count, label: 'Deleted' },
+            { value: stats.negative_score_count, label: 'Negative' },
+        ];
+
+        el.innerHTML = `
+            <div class="analytics-title">Thread Analytics</div>
+            <div class="analytics-grid">
+                ${cards.map(c => `
+                    <div class="stat-card">
+                        <div class="stat-value">${c.value}</div>
+                        <div class="stat-label">${c.label}</div>
+                    </div>
+                `).join('')}
+            </div>
+            ${stats.top_comment_author ? `
+                <div style="margin-top:12px;font-size:0.82rem;color:var(--text-muted);">
+                    Top comment by <span style="color:var(--accent)">${escapeHtml(stats.top_comment_author)}</span>
+                    with ${stats.top_comment_score} points
+                </div>
+            ` : ''}
+        `;
+        el.classList.add('visible');
+    }
+
+    /* ══════════════════════════════════════════════════
+       Render Comment Tree
+       ══════════════════════════════════════════════════ */
+
+    function renderCommentTree(comments, container) {
+        comments.forEach(comment => {
+            const node = document.createElement('div');
+            node.className = 'comment-node';
+
+            /* ── Truncation notice ── */
+            if (comment._truncated) {
+                node.innerHTML = `
+                    <div class="truncated-notice">
+                        ⋯ Replies truncated at depth ${comment.depth}
+                    </div>
+                `;
+                container.appendChild(node);
+                return;
+            }
+
+            const hasReplies = comment.replies && comment.replies.length > 0;
+            const replyCount = hasReplies ? countAllReplies(comment.replies) : 0;
+
+            /* ── Score class ── */
+            let scoreClass = 'neutral';
+            if (comment.score > 0) scoreClass = 'positive';
+            if (comment.score < 0) scoreClass = 'negative';
+
+            /* ── Comment Card ── */
+            const card = document.createElement('div');
+            card.className = 'comment-card' + (comment.is_op ? ' is-op' : '');
+            card.setAttribute('data-hierarchy', comment.hierarchy);
+            card.setAttribute('data-author', comment.author.toLowerCase());
+            card.setAttribute('data-body', comment.body.toLowerCase());
+
+            card.innerHTML = `
+                <div class="comment-header">
+                    <span class="comment-hierarchy">${comment.hierarchy}</span>
+                    <span class="comment-author ${comment.is_deleted ? 'is-deleted' : ''}">
+                        ${escapeHtml(comment.author)}
+                    </span>
+                    ${comment.is_op ? '<span class="op-badge">OP</span>' : ''}
+                    ${comment.gilded > 0 ? `<span class="gilded-badge">${'★'.repeat(Math.min(comment.gilded, 5))}</span>` : ''}
+                    <span class="comment-score ${scoreClass}">
+                        ${comment.score > 0 ? '+' : ''}${comment.score} pts
+                    </span>
+                    <span class="comment-time">${escapeHtml(comment.created_relative)}</span>
+                    <span class="comment-id">${escapeHtml(comment.id || '')}</span>
+                    <a class="comment-permalink" href="${escapeHtml(comment.permalink)}" target="_blank" rel="noopener">🔗</a>
+                </div>
+                <div class="comment-body">${escapeHtml(comment.body)}</div>
+                ${hasReplies ? `
+                    <button class="toggle-btn" onclick="toggleReplies(this)">
+                        ▼ ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}
+                    </button>
+                ` : ''}
+            `;
+
+            /* Breadcrumb on click */
+            card.addEventListener('click', function (e) {
+                if (e.target.closest('.toggle-btn') || e.target.closest('.comment-permalink')) return;
+                showBreadcrumb(comment.hierarchy);
+                /* Remove previous highlights */
+                document.querySelectorAll('.comment-card.highlight').forEach(el => el.classList.remove('highlight'));
+                card.classList.add('highlight');
+            });
+
+            node.appendChild(card);
+
+            /* ── Replies Container ── */
+            if (hasReplies) {
+                const repliesDiv = document.createElement('div');
+                repliesDiv.className = 'replies-container';
+                renderCommentTree(comment.replies, repliesDiv);
+                node.appendChild(repliesDiv);
+            }
+
+            container.appendChild(node);
+        });
+    }
+
+    function countAllReplies(replies) {
+        let count = 0;
+        for (const r of replies) {
+            if (r._truncated) continue;
+            count++;
+            if (r.replies) count += countAllReplies(r.replies);
+        }
+        return count;
+    }
+
+    /* ══════════════════════════════════════════════════
+       Toggle Replies
+       ══════════════════════════════════════════════════ */
+
+    function toggleReplies(btn) {
+        const commentNode = btn.closest('.comment-node');
+        const repliesDiv = commentNode.querySelector(':scope > .replies-container');
+        if (!repliesDiv) return;
+
+        const isCollapsed = repliesDiv.classList.toggle('collapsed');
+        const count = repliesDiv.querySelectorAll('.comment-card').length;
+
+        if (isCollapsed) {
+            btn.textContent = `▶ ${count} ${count === 1 ? 'reply' : 'replies'} (hidden)`;
+        } else {
+            btn.textContent = `▼ ${count} ${count === 1 ? 'reply' : 'replies'}`;
+        }
+    }
+
+    function expandAll() {
+        document.querySelectorAll('.replies-container').forEach(el => {
+            el.classList.remove('collapsed');
+        });
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+            const commentNode = btn.closest('.comment-node');
+            const repliesDiv = commentNode.querySelector(':scope > .replies-container');
+            if (repliesDiv) {
+                const count = repliesDiv.querySelectorAll('.comment-card').length;
+                btn.textContent = `▼ ${count} ${count === 1 ? 'reply' : 'replies'}`;
+            }
+        });
+    }
+
+    function collapseAll() {
+        document.querySelectorAll('.replies-container').forEach(el => {
+            el.classList.add('collapsed');
+        });
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+            const commentNode = btn.closest('.comment-node');
+            const repliesDiv = commentNode.querySelector(':scope > .replies-container');
+            if (repliesDiv) {
+                const count = repliesDiv.querySelectorAll('.comment-card').length;
+                btn.textContent = `▶ ${count} ${count === 1 ? 'reply' : 'replies'} (hidden)`;
+            }
+        });
+    }
+
+    /* ══════════════════════════════════════════════════
+       Breadcrumb Navigation
+       ══════════════════════════════════════════════════ */
+
+    function showBreadcrumb(hierarchy) {
+        const bar = document.getElementById('breadcrumbBar');
+        const parts = hierarchy.split('.');
+        let html = '<span class="breadcrumb-link" onclick="scrollToHierarchy(\'root\')">Thread</span>';
+
+        let accumulated = '';
+        for (let i = 0; i < parts.length; i++) {
+            accumulated = accumulated ? `${accumulated}.${parts[i]}` : parts[i];
+            const label = i === 0 ? `Comment ${parts[0]}` : `Reply ${accumulated}`;
+            html += `<span class="breadcrumb-sep">›</span>`;
+            html += `<span class="breadcrumb-link" onclick="scrollToHierarchy('${accumulated}')">${label}</span>`;
+        }
+
+        bar.innerHTML = html;
+        bar.classList.add('visible');
+    }
+
+    function scrollToHierarchy(hierarchy) {
+        if (hierarchy === 'root') {
+            document.getElementById('postHeader').scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+
+        const card = document.querySelector(`.comment-card[data-hierarchy="${hierarchy}"]`);
+        if (card) {
+            /* Ensure parents are expanded */
+            let parent = card.closest('.replies-container');
+            while (parent) {
+                parent.classList.remove('collapsed');
+                parent = parent.parentElement?.closest('.replies-container');
+            }
+
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.classList.add('highlight');
+            setTimeout(() => card.classList.remove('highlight'), 2000);
+        }
+    }
+
+    /* ══════════════════════════════════════════════════
+       Search
+       ══════════════════════════════════════════════════ */
+
+    function toggleSearch() {
+        const bar = document.getElementById('searchBar');
+        bar.classList.toggle('visible');
+        if (bar.classList.contains('visible')) {
+            document.getElementById('searchInput').focus();
+        } else {
+            document.getElementById('searchInput').value = '';
+            searchComments('');
+        }
+    }
+
+    function searchComments(query) {
+        const cards = document.querySelectorAll('.comment-card');
+        const q = query.toLowerCase().trim();
+        let matchCount = 0;
+
+        cards.forEach(card => {
+            if (!q) {
+                card.classList.remove('search-match');
+                return;
+            }
+
+            const author = card.getAttribute('data-author') || '';
+            const body = card.getAttribute('data-body') || '';
+            const hierarchy = card.getAttribute('data-hierarchy') || '';
+
+            const matches = author.includes(q) || body.includes(q) || hierarchy.includes(q);
+            card.classList.toggle('search-match', matches);
+            if (matches) matchCount++;
+        });
+
+        const countEl = document.getElementById('searchCount');
+        if (q) {
+            countEl.textContent = `${matchCount} match${matchCount !== 1 ? 'es' : ''}`;
+        } else {
+            countEl.textContent = '';
+        }
+    }
+
+    /* ══════════════════════════════════════════════════
+       Export
+       ══════════════════════════════════════════════════ */
+
+    function exportJSON() {
+        if (!cachedData) {
+            showError('No data to export. Fetch a thread first.');
+            return;
+        }
+
+        const blob = new Blob(
+            [JSON.stringify(cachedData, null, 2)],
+            { type: 'application/json' }
+        );
+        downloadBlob(blob, `reddit_thread_${cachedData.thread_id}.json`);
+    }
+
+    function exportCSV() {
+        if (!cachedData) {
+            showError('No data to export. Fetch a thread first.');
+            return;
+        }
+
+        const flat = flattenTree(cachedData.comments);
+        if (flat.length === 0) {
+            showError('No comments to export.');
+            return;
+        }
+
+        const headers = [
+            'id', 'hierarchy', 'depth', 'author', 'score',
+            'is_op', 'is_deleted', 'gilded', 'created_readable', 'permalink', 'body'
+        ];
+
+        let csvContent = headers.join(',') + '\n';
+
+        flat.forEach(row => {
+            const values = headers.map(h => {
+                let val = row[h] !== undefined && row[h] !== null ? String(row[h]) : '';
+                /* Escape CSV values */
+                if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+                    val = '"' + val.replace(/"/g, '""') + '"';
+                }
+                return val;
+            });
+            csvContent += values.join(',') + '\n';
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        downloadBlob(blob, `reddit_thread_${cachedData.thread_id}.csv`);
+    }
+
+    function flattenTree(comments, result) {
+        result = result || [];
+        for (const c of comments) {
+            if (c._truncated) continue;
+            const flat = Object.assign({}, c);
+            delete flat.replies;
+            result.push(flat);
+            if (c.replies) flattenTree(c.replies, result);
+        }
+        return result;
+    }
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showSuccess(`Exported: ${filename}`);
+    }
+
+    /* ══════════════════════════════════════════════════
+       UI Helpers
+       ══════════════════════════════════════════════════ */
+
+    function showLoading() {
+        document.getElementById('loadingMsg').classList.add('visible');
+    }
+
+    function hideLoading() {
+        document.getElementById('loadingMsg').classList.remove('visible');
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = `❌ ${msg}`;
+        el.classList.add('visible');
+    }
+
+    function hideError() {
+        document.getElementById('errorMsg').classList.remove('visible');
+    }
+
+    function showSuccess(msg) {
+        const el = document.getElementById('successMsg');
+        el.textContent = `✓ ${msg}`;
+        el.classList.add('visible');
+    }
+
+    function hideSuccess() {
+        document.getElementById('successMsg').classList.remove('visible');
+    }
+
+    function clearResults() {
+        document.getElementById('commentTree').innerHTML = '';
+        document.getElementById('postHeader').classList.remove('visible');
+        document.getElementById('analyticsPanel').classList.remove('visible');
+        document.getElementById('breadcrumbBar').classList.remove('visible');
+        document.getElementById('appFooter').style.display = 'none';
+    }
+
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
+    /* ══════════════════════════════════════════════════
+       Keyboard Shortcuts
+       ══════════════════════════════════════════════════ */
+
+    document.getElementById('urlInput').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            fetchThread();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        /* Ctrl/Cmd + K → Toggle Search */
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            toggleSearch();
+        }
+        /* Escape → Close search */
+        if (e.key === 'Escape') {
+            const searchBar = document.getElementById('searchBar');
+            if (searchBar.classList.contains('visible')) {
+                toggleSearch();
+            }
+        }
+    });
+
+    /* ── Depth slider live update ── */
+    document.getElementById('depthSlider').addEventListener('input', function () {
+        document.getElementById('depthValue').textContent = this.value;
+    });
+
+    </script>
+</body>
+</html>

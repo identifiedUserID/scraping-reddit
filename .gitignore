@@ -1,0 +1,33 @@
+# ── Credentials ──
+.env
+*.env
+!.env.example
+credentials.*
+config.json
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Exports ──
+exports/
+*.export.json
+*.export.csv
+
+# ── OS ──
+.DS_Store
+Thumbs.db
